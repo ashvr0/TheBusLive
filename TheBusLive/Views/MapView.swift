@@ -7,6 +7,7 @@ struct MapView: View {
 
     @StateObject private var viewModel = VehicleMapViewModel()
     @AppStorage(AppPreferenceKeys.mapStyle) private var mapStyleRaw: String = AppMapStyleOption.standard.rawValue
+    @AppStorage(AppPreferenceKeys.debugModeEnabled) private var debugModeEnabled: Bool = false
 
     private var mapStyle: MapStyle {
         (AppMapStyleOption(rawValue: mapStyleRaw) ?? .standard).mapStyle
@@ -45,9 +46,9 @@ struct MapView: View {
         }
     }
 
-    /// TEMPORARY diagnostic banner to identify why route stops aren't
-    /// matching for certain vehicles. Remove once the root cause is
-    /// confirmed and fixed.
+    /// Diagnostic banner shown only when Debug Mode is enabled in
+    /// Settings. Useful for troubleshooting missing route/stop pins by
+    /// showing the vehicle's raw route name and how many stops matched.
     @ViewBuilder
     private func debugBanner(for vehicle: Vehicle) -> some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -117,7 +118,9 @@ struct MapView: View {
                 case .loaded:
                     if let vehicle = viewModel.vehicles.first {
                         VStack(spacing: 8) {
-                            debugBanner(for: vehicle)
+                            if debugModeEnabled {
+                                debugBanner(for: vehicle)
+                            }
                             VehicleInfoCard(vehicle: vehicle, nextStop: nearestUpcomingStop)
                         }
                         .padding()

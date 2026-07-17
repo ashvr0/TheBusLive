@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("com.thebuslive.preferredColorScheme") private var preferredColorSchemeRaw: String = "system"
     @AppStorage(AppPreferenceKeys.accentColor) private var accentColorRaw: String = AppAccentColor.blue.rawValue
     @AppStorage(AppPreferenceKeys.mapStyle) private var mapStyleRaw: String = AppMapStyleOption.standard.rawValue
+    @AppStorage(AppPreferenceKeys.debugModeEnabled) private var debugModeEnabled: Bool = false
     @State private var showingClearRecentsConfirmation = false
 
     private var appVersion: String {
@@ -90,6 +91,17 @@ struct SettingsView: View {
                     Text(APIConfig.attributionText)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                }
+
+                Section("Developer") {
+                    Toggle(isOn: $debugModeEnabled) {
+                        Label("Debug Mode", systemImage: "ladybug")
+                    }
+                    if debugModeEnabled {
+                        Text("Shows route-matching diagnostics on the vehicle tracking screen (vehicle's route name, stop counts, and match totals). Intended for troubleshooting missing stop pins.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .navigationTitle("Settings")

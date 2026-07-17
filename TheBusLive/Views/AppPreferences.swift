@@ -65,4 +65,5 @@ enum AppMapStyleOption: String, CaseIterable, Identifiable {
 enum AppPreferenceKeys {
     static let accentColor = "com.thebuslive.accentColor"
     static let mapStyle = "com.thebuslive.mapStyle"
+    static let debugModeEnabled = "com.thebuslive.debugModeEnabled"
 }
