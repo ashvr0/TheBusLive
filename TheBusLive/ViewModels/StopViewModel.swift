@@ -26,7 +26,13 @@ final class StopViewModel: ObservableObject {
     }
 
     func loadArrivals() async {
-        state = .loading
+        // Only show the full-screen loading state on the very first
+        // fetch. Pull-to-refresh already has its own spinner, so
+        // flipping state to .loading here would blank out the list
+        // underneath it for no reason.
+        if arrivals.isEmpty {
+            state = .loading
+        }
         do {
             let response = try await client.fetchArrivals(stopID: stop.stopID)
 
@@ -50,8 +56,19 @@ final class StopViewModel: ObservableObject {
             arrivals = sorted
             state = sorted.isEmpty ? .empty : .loaded
             lastRefreshed = Date()
+        } catch is CancellationError {
+            // The task was cancelled (e.g. the view disappeared or a
+            // newer refresh superseded this one). Not a real failure,
+            // so leave whatever state was already showing alone rather
+            // than flashing an error at the user.
+            return
         } catch let error as APIError {
+            if error.isCancellation {
+                return
+            }
             state = .failed(error.localizedDescription)
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             state = .failed(error.localizedDescription)
         }

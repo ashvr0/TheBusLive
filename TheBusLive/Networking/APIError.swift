@@ -30,4 +30,17 @@ enum APIError: LocalizedError {
             return "No data was returned for this request."
         }
     }
+
+    /// True when this error wraps a cancelled network request (e.g. the
+    /// view disappeared mid-fetch, or a newer refresh superseded this
+    /// one). Callers should generally treat this as "ignore" rather than
+    /// showing it to the user as a failure.
+    var isCancellation: Bool {
+        if case .requestFailed(let underlying) = self,
+           let urlError = underlying as? URLError,
+           urlError.code == .cancelled {
+            return true
+        }
+        return false
+    }
 }

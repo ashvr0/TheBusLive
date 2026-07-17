@@ -12,15 +12,18 @@ struct StopDetailView: View {
         _viewModel = StateObject(wrappedValue: StopViewModel(stop: stop))
     }
 
-    /// Shows the stop number by default ("Stop 169"), switching to a
-    /// "Last refresh: h:mm a" line once arrivals have loaded at least
-    /// once. Uses the device's current locale so the time renders in
-    /// whatever 12h/24h format the user's system is set to, rather than
-    /// a hardcoded format.
-    private var refreshSubtitle: String {
-        guard let lastRefreshed = viewModel.lastRefreshed else {
-            return "Stop \(stop.stopID)"
-        }
+    /// The stop number line, always shown ("Stop 169").
+    private var stopSubtitle: String {
+        "Stop \(stop.stopID)"
+    }
+
+    /// "Last refresh: h:mm a" line, shown once arrivals have loaded at
+    /// least once. Uses the device's current locale so the time renders
+    /// in whatever 12h/24h format the user's system is set to, rather
+    /// than a hardcoded format. Returns nil before the first successful
+    /// load, so the toolbar only shows the stop number until then.
+    private var refreshSubtitle: String? {
+        guard let lastRefreshed = viewModel.lastRefreshed else { return nil }
         let formatter = DateFormatter()
         formatter.locale = Locale.autoupdatingCurrent
         formatter.setLocalizedDateFormatFromTemplate("jm")
@@ -72,9 +75,14 @@ struct StopDetailView: View {
                 VStack(spacing: 0) {
                     MarqueeText(text: stop.name, font: .headline)
                         .frame(width: 220)
-                    Text(refreshSubtitle)
+                    Text(stopSubtitle)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                    if let refreshSubtitle {
+                        Text(refreshSubtitle)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {

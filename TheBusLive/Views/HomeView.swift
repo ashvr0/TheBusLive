@@ -104,15 +104,17 @@ struct HomeView: View {
     /// Uses a plain `Button` with programmatic navigation rather than a
     /// `NavigationLink`, since a `NavigationLink` used as a List row
     /// automatically draws a trailing disclosure chevron ("›") over the
-    /// map preview. The map itself keeps `.allowsHitTesting(false)`
-    /// since this is only a thumbnail — the whole card navigates to the
-    /// interactive `AllStopsMapView` on tap, where pins ARE individually
-    /// tappable.
+    /// map preview. Interaction modes are set to `[]` (not just
+    /// `.allowsHitTesting(false)`) because `Map` installs its own pan/
+    /// zoom gesture recognizers that intercept taps before SwiftUI's
+    /// hit-testing modifier ever sees them, which is why the button
+    /// wasn't opening `AllStopsMapView`. The whole card navigates there
+    /// on tap, where pins ARE individually tappable.
     private var mapPreview: some View {
         Button {
             showingAllStopsMap = true
         } label: {
-            Map(position: $cameraPosition, interactionModes: [.pan, .zoom]) {
+            Map(position: $cameraPosition, interactionModes: []) {
                 ForEach(visibleStops) { stop in
                     Annotation(stop.name, coordinate: stop.coordinate) {
                         Image(systemName: favoritesManager.isFavorite(stop) ? "star.circle.fill" : "mappin.circle.fill")
