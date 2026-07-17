@@ -1,0 +1,98 @@
+name: iOS Build
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      export_ipa:
+        description: "Also export an unsigned .ipa artifact"
+        type: boolean
+        default: true
+jobs:
+  build:
+    name: Build TheBusLive
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: List available Xcode versions
+        run: ls /Applications | grep -i xcode
+
+      - name: Select newest available Xcode
+        run: |
+          LATEST_XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -n 1)
+          if [ -z "$LATEST_XCODE" ]; then
+            echo "No versioned Xcode_*.app found, falling back to /Applications/Xcode.app"
+            LATEST_XCODE="/Applications/Xcode.app"
+          fi
+          echo "Selecting $LATEST_XCODE"
+          sudo xcode-select -switch "$LATEST_XCODE/Contents/Developer"
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: |
+          export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+          brew install xcodegen
+
+      - name: Show XcodeGen version
+        run: xcodegen --version
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+
+      - name: List schemes
+        run: xcodebuild -project TheBusLive.xcodeproj -list
+
+      - name: Build (Debug, generic iOS device, unsigned)
+        run: |
+          xcodebuild \
+            -project TheBusLive.xcodeproj \
+            -scheme TheBusLive \
+            -configuration Debug \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Archive (Release, unsigned)
+        if: ${{ github.event.inputs.export_ipa != 'false' }}
+        run: |
+          xcodebuild \
+            -project TheBusLive.xcodeproj \
+            -scheme TheBusLive \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/TheBusLive.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            archive
+
+      - name: Package unsigned .ipa
+        if: ${{ github.event.inputs.export_ipa != 'false' }}
+        run: |
+          mkdir -p build/Payload
+          cp -R build/TheBusLive.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -r TheBusLive-unsigned.ipa Payload
+          cd ..
+
+      - name: Upload unsigned .ipa artifact
+        if: ${{ github.event.inputs.export_ipa != 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: TheBusLive-unsigned-ipa
+          path: build/TheBusLive-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Upload archive artifact
+        if: ${{ github.event.inputs.export_ipa != 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: TheBusLive-xcarchive
+          path: build/TheBusLive.xcarchive
+          if-no-files-found: error
