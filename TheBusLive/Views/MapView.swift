@@ -45,6 +45,29 @@ struct MapView: View {
         }
     }
 
+    /// TEMPORARY diagnostic banner to identify why route stops aren't
+    /// matching for certain vehicles. Remove once the root cause is
+    /// confirmed and fixed.
+    @ViewBuilder
+    private func debugBanner(for vehicle: Vehicle) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("DEBUG")
+                .font(.caption2.bold())
+                .foregroundStyle(.red)
+            Text("vehicle.routeShortName = \"\(vehicle.routeShortName ?? "nil")\"")
+                .font(.caption2)
+            Text("Stop.allStops.count = \(Stop.allStops.count)")
+                .font(.caption2)
+            Text("routeStops.count = \(routeStops.count)")
+                .font(.caption2)
+            Text("distinct route names in data = \(Set(Stop.allStops.flatMap { $0.routeShortNames }).count)")
+                .font(.caption2)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.yellow.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             Map(position: $viewModel.cameraPosition) {
@@ -93,8 +116,11 @@ struct MapView: View {
                     .glassBackground(in: Rectangle())
                 case .loaded:
                     if let vehicle = viewModel.vehicles.first {
-                        VehicleInfoCard(vehicle: vehicle, nextStop: nearestUpcomingStop)
-                            .padding()
+                        VStack(spacing: 8) {
+                            debugBanner(for: vehicle)
+                            VehicleInfoCard(vehicle: vehicle, nextStop: nearestUpcomingStop)
+                        }
+                        .padding()
                     }
                 }
             }
