@@ -112,7 +112,7 @@ Then select the `TheBusLive` scheme and a simulator or device, and build/run as 
 
 The workflow at `.github/workflows/ios-build.yml` runs on `macos-14` runners and:
 
-1. Selects Xcode 15.4
+1. Selects Xcode 26
 2. Installs XcodeGen via Homebrew
 3. Generates `TheBusLive.xcodeproj` from `project.yml`
 4. Builds the Debug configuration for a generic iOS device (compile check)
