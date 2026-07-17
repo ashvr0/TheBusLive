@@ -3,12 +3,12 @@ import MapKit
 
 struct AllStopsMapView: View {
 
-    @State private var cameraPosition: MapCameraPosition = .region(
-        MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 21.3069, longitude: -157.8583),
-            span: MKCoordinateSpan(latitudeDelta: 0.35, longitudeDelta: 0.35)
-        )
+    private static let initialRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 21.3069, longitude: -157.8583),
+        span: MKCoordinateSpan(latitudeDelta: 0.35, longitudeDelta: 0.35)
     )
+
+    @State private var cameraPosition: MapCameraPosition = .region(initialRegion)
     @State private var visibleRegion: MKCoordinateRegion?
     @State private var selectedStop: Stop?
 
@@ -100,9 +100,9 @@ struct AllStopsMapView: View {
         .onAppear {
             if let region = visibleRegion {
                 scheduleVisibleStopsUpdate(for: region)
-            } else if case let .region(region) = cameraPosition {
-                visibleRegion = region
-                scheduleVisibleStopsUpdate(for: region)
+            } else {
+                visibleRegion = Self.initialRegion
+                scheduleVisibleStopsUpdate(for: Self.initialRegion)
             }
         }
         .navigationTitle("All Stops")
