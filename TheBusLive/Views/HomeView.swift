@@ -95,30 +95,23 @@ struct HomeView: View {
         NavigationLink {
             AllStopsMapView()
         } label: {
-            ZStack(alignment: .bottomTrailing) {
-                Map(position: $cameraPosition, interactionModes: [.pan, .zoom]) {
-                    ForEach(visibleStops) { stop in
-                        Annotation(stop.name, coordinate: stop.coordinate) {
-                            Image(systemName: favoritesManager.isFavorite(stop) ? "star.circle.fill" : "mappin.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundStyle(favoritesManager.isFavorite(stop) ? .yellow : Color.accentColor)
-                                .background(Circle().fill(.white).frame(width: 12, height: 12))
-                        }
+            Map(position: $cameraPosition, interactionModes: [.pan, .zoom]) {
+                ForEach(visibleStops) { stop in
+                    Annotation(stop.name, coordinate: stop.coordinate) {
+                        Image(systemName: favoritesManager.isFavorite(stop) ? "star.circle.fill" : "mappin.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(favoritesManager.isFavorite(stop) ? .yellow : Color.accentColor)
+                            .background(Circle().fill(.white).frame(width: 12, height: 12))
                     }
                 }
-                .onMapCameraChange { context in
-                    visibleRegion = context.region
-                }
-                .allowsHitTesting(false)
-                .frame(height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.caption)
-                    .padding(8)
-                    .glassBackground(in: Circle())
-                    .padding(10)
             }
+            .onMapCameraChange { context in
+                visibleRegion = context.region
+            }
+            .allowsHitTesting(false)
+            .frame(height: 200)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
         .padding(.vertical, 8)

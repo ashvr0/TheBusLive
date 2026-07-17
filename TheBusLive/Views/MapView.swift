@@ -12,12 +12,38 @@ struct MapView: View {
         return RouteShapes.polylines(forRouteShortName: routeShortName)
     }
 
+    /// Stops along the vehicle's current route, so riders can see where
+    /// the bus is headed next, not just its current position.
+    private var routeStops: [Stop] {
+        guard let routeShortName = viewModel.vehicles.first?.routeShortName else { return [] }
+        return Stop.allStops.filter { $0.routeShortNames.contains(routeShortName) }
+    }
+
+    /// The stop nearest to the vehicle's current position, used to
+    /// highlight "next stop" without needing full GTFS stop-sequence
+    /// data (which isn't available on the client).
+    private var nearestUpcomingStop: Stop? {
+        guard let vehicle = viewModel.vehicles.first else { return nil }
+        let vehicleLocation = CLLocation(latitude: vehicle.coordinate.latitude, longitude: vehicle.coordinate.longitude)
+        return routeStops.min { lhs, rhs in
+            let lhsDistance = CLLocation(latitude: lhs.coordinate.latitude, longitude: lhs.coordinate.longitude).distance(from: vehicleLocation)
+            let rhsDistance = CLLocation(latitude: rhs.coordinate.latitude, longitude: rhs.coordinate.longitude).distance(from: vehicleLocation)
+            return lhsDistance < rhsDistance
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             Map(position: $viewModel.cameraPosition) {
                 ForEach(Array(routePolylines.enumerated()), id: \.offset) { _, points in
                     MapPolyline(coordinates: points)
                         .stroke(Color.accentColor.opacity(0.6), lineWidth: 3)
+                }
+
+                ForEach(routeStops) { stop in
+                    Annotation(stop.name, coordinate: stop.coordinate) {
+                        RouteStopPin(isNextStop: stop.id == nearestUpcomingStop?.id)
+                    }
                 }
 
                 ForEach(viewModel.vehicles) { vehicle in
@@ -53,7 +79,7 @@ struct MapView: View {
                     .glassBackground(in: Rectangle())
                 case .loaded:
                     if let vehicle = viewModel.vehicles.first {
-                        VehicleInfoCard(vehicle: vehicle)
+                        VehicleInfoCard(vehicle: vehicle, nextStop: nearestUpcomingStop)
                             .padding()
                     }
                 }
@@ -67,6 +93,21 @@ struct MapView: View {
         .onDisappear {
             viewModel.stopAutoRefresh()
         }
+    }
+}
+
+private struct RouteStopPin: View {
+    let isNextStop: Bool
+
+    var body: some View {
+        Circle()
+            .fill(isNextStop ? Color.accentColor : Color.secondary.opacity(0.5))
+            .frame(width: isNextStop ? 12 : 7, height: isNextStop ? 12 : 7)
+            .overlay(
+                Circle()
+                    .stroke(.white, lineWidth: isNextStop ? 2 : 1)
+            )
+            .shadow(radius: isNextStop ? 2 : 0)
     }
 }
 
@@ -87,6 +128,7 @@ private struct VehicleMarker: View {
 
 private struct VehicleInfoCard: View {
     let vehicle: Vehicle
+    var nextStop: Stop? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -106,6 +148,19 @@ private struct VehicleInfoCard: View {
                 Text(headsign)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+            }
+
+            if let nextStop {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.forward.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.accentColor)
+                    Text("Next stop:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    MarqueeText(text: nextStop.name, font: .caption, fontWeight: .semibold)
+                        .frame(maxWidth: 200)
+                }
             }
 
             if let lastMessage = vehicle.lastMessage, !lastMessage.isEmpty {

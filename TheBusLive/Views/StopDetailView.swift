@@ -39,8 +39,8 @@ struct StopDetailView: View {
                 }
             }
         }
-        .navigationTitle(stop.name)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Arrival.self) { arrival in
             if let vehicleNumber = arrival.vehicle, !vehicleNumber.isEmpty {
                 MapView(vehicleNumber: vehicleNumber)
@@ -53,6 +53,10 @@ struct StopDetailView: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                MarqueeText(text: stop.name, font: .headline)
+                    .frame(width: 220)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     favoritesManager.toggleFavorite(stop)

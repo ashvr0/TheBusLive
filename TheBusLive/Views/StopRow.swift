@@ -14,11 +14,7 @@ struct StopRow: View {
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(stop.name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                MarqueeText(text: stop.name, font: .subheadline, fontWeight: .medium)
 
                 Text("Stop \(stop.stopID)" + (stop.routeShortNames.isEmpty ? "" : " · Routes \(stop.routeShortNames.joined(separator: ", "))"))
                     .font(.caption)
