@@ -19,6 +19,8 @@ struct HomeView: View {
     @State private var visibleRegion: MKCoordinateRegion?
     @State private var selectedStop: Stop?
 
+    @State private var showingAllStopsMap = false
+
     private var visibleStops: [Stop] {
         guard let region = visibleRegion, region.span.latitudeDelta < 0.12 else { return [] }
 
@@ -86,6 +88,9 @@ struct HomeView: View {
             .navigationDestination(for: Stop.self) { stop in
                 StopDetailView(stop: stop)
             }
+            .navigationDestination(isPresented: $showingAllStopsMap) {
+                AllStopsMapView()
+            }
             .sheet(item: $selectedStop) { stop in
                 NavigationStack {
                     StopDetailView(stop: stop)
@@ -96,9 +101,13 @@ struct HomeView: View {
         }
     }
 
+    /// Uses a plain `Button` with programmatic navigation rather than a
+    /// `NavigationLink` here, since a `NavigationLink` used as a List row
+    /// automatically draws a trailing disclosure chevron ("›") over the
+    /// map, which looked out of place floating on top of the preview.
     private var mapPreview: some View {
-        NavigationLink {
-            AllStopsMapView()
+        Button {
+            showingAllStopsMap = true
         } label: {
             Map(position: $cameraPosition, interactionModes: [.pan, .zoom]) {
                 ForEach(visibleStops) { stop in
@@ -120,6 +129,7 @@ struct HomeView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
+        .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
 }
