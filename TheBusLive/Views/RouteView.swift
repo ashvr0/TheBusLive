@@ -4,6 +4,11 @@ import MapKit
 struct RouteView: View {
 
     let route: BusRoute
+    @AppStorage(AppPreferenceKeys.mapStyle) private var mapStyleRaw: String = AppMapStyleOption.standard.rawValue
+
+    private var mapStyle: MapStyle {
+        (AppMapStyleOption(rawValue: mapStyleRaw) ?? .standard).mapStyle
+    }
 
     private var polylines: [[CLLocationCoordinate2D]] {
         RouteShapes.polylines(forRouteShortName: route.routeNum)
@@ -19,6 +24,7 @@ struct RouteView: View {
                                 .stroke(Color.accentColor, lineWidth: 3)
                         }
                     }
+                    .mapStyle(mapStyle)
                     .frame(height: 220)
                     .listRowInsets(EdgeInsets())
                 }

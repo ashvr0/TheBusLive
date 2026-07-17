@@ -20,6 +20,11 @@ struct AllStopsMapView: View {
     @State private var regionUpdateTask: Task<Void, Never>?
 
     @EnvironmentObject private var favoritesManager: FavoritesManager
+    @AppStorage(AppPreferenceKeys.mapStyle) private var mapStyleRaw: String = AppMapStyleOption.standard.rawValue
+
+    private var mapStyle: MapStyle {
+        (AppMapStyleOption(rawValue: mapStyleRaw) ?? .standard).mapStyle
+    }
 
     private var isZoomedInEnough: Bool {
         guard let region = visibleRegion else { return false }
@@ -78,6 +83,7 @@ struct AllStopsMapView: View {
             MapScaleView()
             MapUserLocationButton()
         }
+        .mapStyle(mapStyle)
         .onMapCameraChange(frequency: .continuous) { context in
             // Keep visibleRegion live so the "zoom in" overlay reacts
             // immediately, but debounce the (potentially expensive)

@@ -4,6 +4,11 @@ import MapKit
 struct HomeView: View {
 
     @EnvironmentObject private var favoritesManager: FavoritesManager
+    @AppStorage(AppPreferenceKeys.mapStyle) private var mapStyleRaw: String = AppMapStyleOption.standard.rawValue
+
+    private var mapStyle: MapStyle {
+        (AppMapStyleOption(rawValue: mapStyleRaw) ?? .standard).mapStyle
+    }
 
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -108,6 +113,7 @@ struct HomeView: View {
             .onMapCameraChange { context in
                 visibleRegion = context.region
             }
+            .mapStyle(mapStyle)
             .allowsHitTesting(false)
             .frame(height: 200)
             .frame(maxWidth: .infinity)

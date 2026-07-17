@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
 
     @AppStorage("com.thebuslive.preferredColorScheme") private var preferredColorSchemeRaw: String = "system"
+    @AppStorage(AppPreferenceKeys.accentColor) private var accentColorRaw: String = AppAccentColor.blue.rawValue
 
     private var preferredColorScheme: ColorScheme? {
         switch preferredColorSchemeRaw {
@@ -10,6 +11,10 @@ struct ContentView: View {
         case "dark": return .dark
         default: return nil
         }
+    }
+
+    private var accentColor: Color {
+        (AppAccentColor(rawValue: accentColorRaw) ?? .blue).color
     }
 
     var body: some View {
@@ -34,6 +39,7 @@ struct ContentView: View {
                     Label("Settings", systemImage: "gearshape.fill")
                 }
         }
+        .tint(accentColor)
         .preferredColorScheme(preferredColorScheme)
     }
 }

@@ -6,6 +6,11 @@ struct MapView: View {
     let vehicleNumber: String
 
     @StateObject private var viewModel = VehicleMapViewModel()
+    @AppStorage(AppPreferenceKeys.mapStyle) private var mapStyleRaw: String = AppMapStyleOption.standard.rawValue
+
+    private var mapStyle: MapStyle {
+        (AppMapStyleOption(rawValue: mapStyleRaw) ?? .standard).mapStyle
+    }
 
     private var routePolylines: [[CLLocationCoordinate2D]] {
         guard let routeShortName = viewModel.vehicles.first?.routeShortName else { return [] }
@@ -64,6 +69,7 @@ struct MapView: View {
                 MapCompass()
                 MapScaleView()
             }
+            .mapStyle(mapStyle)
             .ignoresSafeArea(edges: .bottom)
 
             GlassGroup {

@@ -4,6 +4,8 @@ struct SettingsView: View {
 
     @EnvironmentObject private var favoritesManager: FavoritesManager
     @AppStorage("com.thebuslive.preferredColorScheme") private var preferredColorSchemeRaw: String = "system"
+    @AppStorage(AppPreferenceKeys.accentColor) private var accentColorRaw: String = AppAccentColor.blue.rawValue
+    @AppStorage(AppPreferenceKeys.mapStyle) private var mapStyleRaw: String = AppMapStyleOption.standard.rawValue
     @State private var showingClearRecentsConfirmation = false
 
     private var appVersion: String {
@@ -20,6 +22,41 @@ struct SettingsView: View {
                         Text("System").tag("system")
                         Text("Light").tag("light")
                         Text("Dark").tag("dark")
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Accent Color")
+                        HStack(spacing: 12) {
+                            ForEach(AppAccentColor.allCases) { option in
+                                Button {
+                                    accentColorRaw = option.rawValue
+                                } label: {
+                                    Circle()
+                                        .fill(option.color)
+                                        .frame(width: 28, height: 28)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(.primary, lineWidth: accentColorRaw == option.rawValue ? 2 : 0)
+                                                .padding(-3)
+                                        )
+                                        .overlay(
+                                            Image(systemName: "checkmark")
+                                                .font(.caption2.bold())
+                                                .foregroundStyle(.white)
+                                                .opacity(accentColorRaw == option.rawValue ? 1 : 0)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(option.displayName)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+
+                    Picker("Map Style", selection: $mapStyleRaw) {
+                        ForEach(AppMapStyleOption.allCases) { option in
+                            Text(option.displayName).tag(option.rawValue)
+                        }
                     }
                 }
                 // delte recent stops
