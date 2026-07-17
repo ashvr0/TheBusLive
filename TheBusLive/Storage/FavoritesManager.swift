@@ -30,14 +30,25 @@ final class FavoritesManager: ObservableObject {
     func toggleFavorite(_ stop: Stop) {
         if let index = favorites.firstIndex(of: stop) {
             favorites.remove(at: index)
+            HapticsManager.shared.warning()
         } else {
             favorites.append(stop)
+            HapticsManager.shared.success()
         }
         save(favorites, key: favoritesKey)
     }
 
     func removeFavorite(at offsets: IndexSet) {
         favorites.remove(atOffsets: offsets)
+        save(favorites, key: favoritesKey)
+        HapticsManager.shared.warning()
+    }
+
+    /// Reorders favorites in place, used to back drag-to-reorder in
+    /// `FavoritesView`. `IndexSet`/`Int` signature matches
+    /// `ForEach.onMove` directly.
+    func moveFavorite(from source: IndexSet, to destination: Int) {
+        favorites.move(fromOffsets: source, toOffset: destination)
         save(favorites, key: favoritesKey)
     }
 

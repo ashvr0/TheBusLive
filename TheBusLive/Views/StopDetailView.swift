@@ -58,6 +58,9 @@ struct StopDetailView: View {
                     .frame(width: 220)
             }
             ToolbarItem(placement: .topBarTrailing) {
+                // Note: toggleFavorite itself fires a success/warning
+                // haptic, so no separate tap haptic is added here to
+                // avoid a double-buzz.
                 Button {
                     favoritesManager.toggleFavorite(stop)
                 } label: {

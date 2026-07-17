@@ -24,6 +24,10 @@ struct FavoritesView: View {
                             .onDelete { offsets in
                                 favoritesManager.removeFavorite(at: offsets)
                             }
+                            .onMove { source, destination in
+                                HapticsManager.shared.rigid()
+                                favoritesManager.moveFavorite(from: source, to: destination)
+                            }
                         }
                     }
                     .listStyle(.insetGrouped)

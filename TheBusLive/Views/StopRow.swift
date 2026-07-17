@@ -25,6 +25,8 @@ struct StopRow: View {
             Spacer()
 
             if let onToggleFavorite {
+                // Callers pass favoritesManager.toggleFavorite, which
+                // already triggers success/warning haptics.
                 Button(action: onToggleFavorite) {
                     Image(systemName: isFavorite ? "star.fill" : "star")
                         .foregroundStyle(isFavorite ? .yellow : .secondary)

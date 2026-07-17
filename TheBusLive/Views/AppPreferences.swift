@@ -66,4 +66,5 @@ enum AppPreferenceKeys {
     static let accentColor = "com.thebuslive.accentColor"
     static let mapStyle = "com.thebuslive.mapStyle"
     static let debugModeEnabled = "com.thebuslive.debugModeEnabled"
+    static let hapticsEnabled = "com.thebuslive.hapticsEnabled"
 }

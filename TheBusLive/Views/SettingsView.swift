@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage(AppPreferenceKeys.accentColor) private var accentColorRaw: String = AppAccentColor.blue.rawValue
     @AppStorage(AppPreferenceKeys.mapStyle) private var mapStyleRaw: String = AppMapStyleOption.standard.rawValue
     @AppStorage(AppPreferenceKeys.debugModeEnabled) private var debugModeEnabled: Bool = false
+    @AppStorage(AppPreferenceKeys.hapticsEnabled) private var hapticsEnabled: Bool = true
     @State private var showingClearRecentsConfirmation = false
 
     private var appVersion: String {
@@ -57,6 +58,15 @@ struct SettingsView: View {
                     Picker("Map Style", selection: $mapStyleRaw) {
                         ForEach(AppMapStyleOption.allCases) { option in
                             Text(option.displayName).tag(option.rawValue)
+                        }
+                    }
+
+                    Toggle(isOn: $hapticsEnabled) {
+                        Label("Haptic Feedback", systemImage: "hand.tap")
+                    }
+                    .onChange(of: hapticsEnabled) { _, newValue in
+                        if newValue {
+                            HapticsManager.shared.selectionChanged()
                         }
                     }
                 }
@@ -111,6 +121,7 @@ struct SettingsView: View {
                 titleVisibility: .visible
             ) {
                 Button("Clear Recents", role: .destructive) {
+                    HapticsManager.shared.warning()
                     favoritesManager.clearRecents()
                 }
                 Button("Cancel", role: .cancel) {}

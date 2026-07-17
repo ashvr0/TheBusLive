@@ -71,6 +71,7 @@ struct AllStopsMapView: View {
             ForEach(visibleStops) { stop in
                 Annotation(stop.name, coordinate: stop.coordinate) {
                     Button {
+                        HapticsManager.shared.light()
                         selectedStop = stop
                     } label: {
                         StopPin(stop: stop, isFavorite: favoritesManager.isFavorite(stop))
