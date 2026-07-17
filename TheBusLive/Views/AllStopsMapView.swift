@@ -31,7 +31,18 @@ struct AllStopsMapView: View {
         return region.span.latitudeDelta < 0.12
     }
 
-    /// Filters stops for a given region. Run off the main actor so large
+    /// Above this many stops in view, MapKit's per-annotation SwiftUI
+    /// views (each a real Button + label + icon) start costing enough
+    /// layout/hit-testing time per frame to visibly stutter pinch/pan.
+    /// Past this count we thin the results instead of rendering all of
+    /// them.
+    private static let maxRenderedPins = 150
+
+    /// Filters stops for a given region, then thins the result down to
+    /// `maxRenderedPins` by snapping to a coarse grid and keeping one
+    /// stop per cell, so the pins that remain stay evenly spread across
+    /// the visible area instead of clustering wherever the array
+    /// happened to list stops first. Run off the main actor so large
     /// stop lists don't block scrolling/zooming.
     nonisolated private func computeVisibleStops(for region: MKCoordinateRegion, allStops: [Stop]) -> [Stop] {
         let latDelta = region.span.latitudeDelta / 2
@@ -43,10 +54,35 @@ struct AllStopsMapView: View {
 
         guard region.span.latitudeDelta < 0.12 else { return [] }
 
-        return allStops.filter {
+        let inRegion = allStops.filter {
             $0.latitude >= minLat && $0.latitude <= maxLat &&
             $0.longitude >= minLon && $0.longitude <= maxLon
         }
+
+        guard inRegion.count > Self.maxRenderedPins else { return inRegion }
+
+        // Divide the visible area into a grid sized so the number of
+        // cells roughly matches the pin budget, then keep one stop per
+        // occupied cell. This spreads the thinned-out pins evenly
+        // rather than just truncating the array.
+        let gridSize = Int(ceil(sqrt(Double(Self.maxRenderedPins))))
+        let cellLat = region.span.latitudeDelta / Double(gridSize)
+        let cellLon = region.span.longitudeDelta / Double(gridSize)
+
+        var seenCells = Set<Int>()
+        var thinned: [Stop] = []
+        thinned.reserveCapacity(Self.maxRenderedPins)
+
+        for stop in inRegion {
+            let row = Int((stop.latitude - minLat) / max(cellLat, 0.0001))
+            let col = Int((stop.longitude - minLon) / max(cellLon, 0.0001))
+            let cellKey = row * gridSize + col
+            if seenCells.insert(cellKey).inserted {
+                thinned.append(stop)
+            }
+        }
+
+        return thinned
     }
 
     /// Debounces rapid camera-change callbacks (fired continuously during
@@ -74,11 +110,11 @@ struct AllStopsMapView: View {
                         HapticsManager.shared.light()
                         selectedStop = stop
                     } label: {
-                        StopPin(stop: stop, isFavorite: favoritesManager.isFavorite(stop))
+                        StopPin(isFavorite: favoritesManager.isFavorite(stop))
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .frame(minWidth: 44, minHeight: 44)
                 }
             }
         }
@@ -128,21 +164,17 @@ struct AllStopsMapView: View {
 }
 
 private struct StopPin: View {
-    let stop: Stop
     let isFavorite: Bool
 
     var body: some View {
-        VStack(spacing: 2) {
-            Text(stop.stopID)
-                .font(.caption2.bold())
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .glassBackground(in: Capsule())
-            Image(systemName: isFavorite ? "star.circle.fill" : "mappin.circle.fill")
-                .font(.system(size: 20))
-                .foregroundStyle(isFavorite ? .yellow : Color.accentColor)
-                .background(Circle().fill(.white).frame(width: 16, height: 16))
-        }
+        Image(systemName: isFavorite ? "star.circle.fill" : "mappin.circle.fill")
+            .font(.system(size: 22))
+            .foregroundStyle(isFavorite ? .yellow : Color.accentColor)
+            .background(
+                Circle()
+                    .fill(.white)
+                    .frame(width: 16, height: 16)
+            )
     }
 }
 
