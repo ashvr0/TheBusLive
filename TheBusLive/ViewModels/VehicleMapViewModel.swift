@@ -104,7 +104,7 @@ final class VehicleMapViewModel: ObservableObject {
                 if Task.isCancelled {
                     break
                 }
-                
+
                 do {
                     try await Task.sleep(nanoseconds: 15_000_000_000)
                 } catch is CancellationError {
@@ -121,8 +121,13 @@ final class VehicleMapViewModel: ObservableObject {
         refreshTask?.cancel()
         refreshTask = nil
     }
+
     deinit {
-        stopAutoRefresh()
+        // `deinit` is nonisolated, so it cannot synchronously call the
+        // @MainActor `stopAutoRefresh()`. Cancelling the task directly
+        // here is safe from any context since `Task.cancel()` itself is
+        // not actor-isolated.
+        refreshTask?.cancel()
     }
 }
 
@@ -161,7 +166,7 @@ final class VehicleMapViewModelAlternative: ObservableObject {
         if vehicles.isEmpty {
             state = .loading
         }
-        
+
         do {
             let response = try await client.fetchVehicle(number: number)
 
@@ -208,7 +213,7 @@ final class VehicleMapViewModelAlternative: ObservableObject {
     func startAutoRefresh(number: String) {
         stopAutoRefresh()
         hasCenteredCamera = false
-        
+
         let weakSelf = WeakReference(self)
         refreshTask = Task {
             while !Task.isCancelled {
@@ -216,13 +221,13 @@ final class VehicleMapViewModelAlternative: ObservableObject {
                 guard let strongSelf = weakSelf.value else {
                     break
                 }
-                
+
                 await strongSelf.loadVehicle(number: number)
-                
+
                 if Task.isCancelled {
                     break
                 }
-                
+
                 do {
                     try await Task.sleep(nanoseconds: 15_000_000_000)
                 } catch is CancellationError {
@@ -238,16 +243,17 @@ final class VehicleMapViewModelAlternative: ObservableObject {
         refreshTask?.cancel()
         refreshTask = nil
     }
-    
+
     deinit {
-        stopAutoRefresh()
+        // See note in VehicleMapViewModel.deinit above.
+        refreshTask?.cancel()
     }
 }
 
 // Helper for safely capturing self in async contexts
 private class WeakReference<T: AnyObject> {
     weak var value: T?
-    
+
     init(_ value: T) {
         self.value = value
     }

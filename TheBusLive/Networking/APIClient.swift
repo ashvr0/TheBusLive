@@ -7,7 +7,6 @@ import Foundation
 /// app's Codable models. This avoids any third party dependency, which
 /// keeps the GitHub Actions build simple.
 actor APIClient {
-
     static let shared = APIClient()
     private let session: URLSession
     private var arrivalsCache: [String: (data: ArrivalsResponse, timestamp: Date)] = [:]
