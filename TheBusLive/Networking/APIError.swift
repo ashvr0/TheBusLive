@@ -25,7 +25,7 @@ enum APIError: LocalizedError {
         case .serverMessage(let message):
             return message
         case .missingAPIKey:
-            return "No TheBus API key is configured. Add your key in APIConfig.swift."
+            return "API key not detected. An API key is required for this app to work — add yours in Settings."
         case .noData:
             return "No data was returned for this request."
         }

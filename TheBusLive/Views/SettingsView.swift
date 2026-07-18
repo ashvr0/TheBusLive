@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var showingClearRecentsConfirmation = false
     @State private var showingPrivacyDetails = false
     @State private var showingAPIKeyInfo = false
+    @State private var showingMissingKeyAlert = false
     @FocusState private var apiKeyFieldFocused: Bool
 
     private var appVersion: String {
@@ -76,10 +77,11 @@ struct SettingsView: View {
                 }
                 Section {
                     HStack {
-                        SecureField("Default key in use", text: $apiKey)
+                        TextField("Paste your TheBus API key", text: $apiKey)
                             .focused($apiKeyFieldFocused)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                            .font(.system(.body, design: .monospaced))
                         if !apiKey.isEmpty {
                             Button {
                                 apiKey = ""
@@ -92,10 +94,11 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text("TheBus API Key")
+                    Text("TheBus API Key (Required)")
                 } footer: {
-                    HStack(spacing: 4) {
-                        Text("Optional. Leave blank to use the app's built-in key.")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Required. The app can't fetch arrivals, routes, or vehicles without your own key.")
+                        Text("Each key is limited to 250,000 requests/day by TheBus, so use your own key rather than sharing one — a shared key can run out for everyone.")
                         Button("Get your own key") {
                             showingAPIKeyInfo = true
                         }
@@ -114,7 +117,7 @@ struct SettingsView: View {
                 // About section
                 Section("About") {
                     LabeledContent("Version", value: appVersion)
-                    Link(destination: URL(string: "https://hea.thebus.org/api_info.asp")!) {
+                    Link(destination: URL(string: "https://api.thebus.org/NewAccount/")!) {
                         Label("TheBus API registration", systemImage: "link")
                     }
                     Link(destination: URL(string: "https://www.thebus.org")!) {
@@ -180,6 +183,16 @@ struct SettingsView: View {
                 Button("OK") {}
             } message: {
                 Text("Register for a free key at hea.thebus.org (see the link under About), then paste it here.")
+            }
+            .alert("API Key Not Detected", isPresented: $showingMissingKeyAlert) {
+                Button("OK") {}
+            } message: {
+                Text("An API key is required for this app to work. Get your own free key at hea.thebus.org and paste it above.")
+            }
+            .onAppear {
+                if !APIConfig.hasKey {
+                    showingMissingKeyAlert = true
+                }
             }
         }
     }

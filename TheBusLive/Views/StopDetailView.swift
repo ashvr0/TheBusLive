@@ -66,7 +66,7 @@ struct StopDetailView: View {
                     message: "This bus arrival has been cancelled and is not operating.",
                     systemImage: "xmark.circle"
                 ))
-            } else if let vehicleNumber = arrival.vehicle, !vehicleNumber.isEmpty {
+            } else if arrival.estimated, let vehicleNumber = arrival.vehicle, !vehicleNumber.isEmpty {
                 MapView(vehicleNumber: vehicleNumber)
             } else if arrival.estimated {
                 StatusView(kind: .empty(
@@ -77,7 +77,7 @@ struct StopDetailView: View {
             } else {
                 StatusView(kind: .empty(
                     title: "Scheduled arrival",
-                    message: "This is a scheduled arrival. Vehicle tracking is only available for live estimates.",
+                    message: "This bus is scheduled to arrive at the posted time. Live vehicle tracking isn't available for scheduled (non-live) arrivals.",
                     systemImage: "clock"
                 ))
             }

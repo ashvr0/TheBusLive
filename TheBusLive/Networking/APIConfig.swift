@@ -2,16 +2,17 @@ import Foundation
 
 /// Central place for TheBus API configuration.
 enum APIConfig {
-    /// Fallback/default TheBus API application id (AppID), used only if
-    /// the user hasn't entered their own key in Settings.
-    private static let defaultKey = "3D6DF239-6FE0-4FDE-A88D-CA6D0A7881FB"
-
-    /// The active API key: the user's key from Settings if they've set
-    /// one, otherwise `defaultKey`.
+    /// The user's registered TheBus API key, entered in Settings. There
+    /// is no built-in fallback key: TheBus limits each key to 250,000
+    /// requests/day, so every install needs its own key rather than
+    /// sharing one baked into the app.
     static var key: String {
-        let stored = UserDefaults.standard.string(forKey: AppPreferenceKeys.apiKey) ?? ""
-        let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? defaultKey : trimmed
+        UserDefaults.standard.string(forKey: AppPreferenceKeys.apiKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    static var hasKey: Bool {
+        !key.isEmpty
     }
 
     static let scheme = "https"
