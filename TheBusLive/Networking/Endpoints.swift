@@ -1,7 +1,7 @@
 import Foundation
 
 /// Builds request URLs for TheBus's public Web API.
-/// All of TheBus's endpoints are read only, use HTTP GET, and return XML.
+/// All of TheBus's endpoints are read-only, use HTTP GET, and return XML.
 /// Each case here maps to one documented service at
 /// https://hea.thebus.org/api_info.asp.
 enum Endpoint {
@@ -9,7 +9,7 @@ enum Endpoint {
     case vehicle(number: String)
     case routeByNumber(routeNum: String)
     case routeByHeadsign(text: String)
-
+    // MARK: - Path
     private var path: String {
         switch self {
         case .arrivals:
@@ -20,7 +20,7 @@ enum Endpoint {
             return "/route/"
         }
     }
-
+    // MARK: - Query Items
     private var queryItems: [URLQueryItem] {
         var items = [URLQueryItem(name: "key", value: APIConfig.key)]
         switch self {
@@ -36,7 +36,10 @@ enum Endpoint {
         return items
     }
 
+    // MARK: - URL Construction
     func url() -> URL? {
+        guard APIConfig.hasKey else { return nil }
+
         var components = URLComponents()
         components.scheme = APIConfig.scheme
         components.host = APIConfig.host

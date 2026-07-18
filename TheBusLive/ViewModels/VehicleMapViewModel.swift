@@ -45,6 +45,9 @@ final class VehicleMapViewModel: ObservableObject {
         }
         do {
             let response = try await client.fetchVehicle(number: number)
+            if Task.isCancelled {
+                return
+            }
 
             if let message = response.errorMessage {
                 state = .failed(message)
@@ -74,7 +77,13 @@ final class VehicleMapViewModel: ObservableObject {
                     )
                 }
             }
+        } catch is CancellationError {
+            // Task was cancelled, no action needed
+            return
         } catch let error as APIError {
+            if error.isCancellation {
+                return
+            }
             state = .failed(error.localizedDescription)
         } catch {
             state = .failed(error.localizedDescription)
@@ -92,7 +101,18 @@ final class VehicleMapViewModel: ObservableObject {
         refreshTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.loadVehicle(number: number)
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                if Task.isCancelled {
+                    break
+                }
+                
+                do {
+                    try await Task.sleep(nanoseconds: 15_000_000_000)
+                } catch is CancellationError {
+                    break
+                } catch {
+                    // Sleep was interrupted, but not cancelled
+                    continue
+                }
             }
         }
     }
@@ -100,5 +120,135 @@ final class VehicleMapViewModel: ObservableObject {
     func stopAutoRefresh() {
         refreshTask?.cancel()
         refreshTask = nil
+    }
+    deinit {
+        stopAutoRefresh()
+    }
+}
+
+// MARK: - Alternative Weak Reference Approach
+// This approach provides an additional layer of safety by explicitly
+// handling the weak self reference in the async context.
+@MainActor
+final class VehicleMapViewModelAlternative: ObservableObject {
+
+    enum LoadState {
+        case idle
+        case loading
+        case loaded
+        case empty
+        case failed(String)
+    }
+
+    @Published private(set) var vehicles: [Vehicle] = []
+    @Published private(set) var state: LoadState = .idle
+    @Published var cameraPosition: MapCameraPosition = .region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 21.3069, longitude: -157.8583),
+            span: MKCoordinateSpan(latitudeDelta: 0.35, longitudeDelta: 0.35)
+        )
+    )
+
+    private let client: APIClient
+    private var refreshTask: Task<Void, Never>?
+    private var hasCenteredCamera = false
+
+    init(client: APIClient = .shared) {
+        self.client = client
+    }
+
+    func loadVehicle(number: String, animateMovement: Bool = true) async {
+        if vehicles.isEmpty {
+            state = .loading
+        }
+        
+        do {
+            let response = try await client.fetchVehicle(number: number)
+
+            if Task.isCancelled { return }
+
+            if let message = response.errorMessage {
+                state = .failed(message)
+                vehicles = []
+                return
+            }
+
+            let results = response.vehicle ?? []
+            state = results.isEmpty ? .empty : .loaded
+
+            if animateMovement {
+                withAnimation(.linear(duration: 1.0)) {
+                    vehicles = results
+                }
+            } else {
+                vehicles = results
+            }
+
+            if let first = results.first, !hasCenteredCamera {
+                hasCenteredCamera = true
+                withAnimation {
+                    cameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: first.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                        )
+                    )
+                }
+            }
+        } catch is CancellationError {
+            return
+        } catch let error as APIError {
+            if error.isCancellation { return }
+            state = .failed(error.localizedDescription)
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+    func startAutoRefresh(number: String) {
+        stopAutoRefresh()
+        hasCenteredCamera = false
+        
+        let weakSelf = WeakReference(self)
+        refreshTask = Task {
+            while !Task.isCancelled {
+                // Attempt to retain self for this iteration
+                guard let strongSelf = weakSelf.value else {
+                    break
+                }
+                
+                await strongSelf.loadVehicle(number: number)
+                
+                if Task.isCancelled {
+                    break
+                }
+                
+                do {
+                    try await Task.sleep(nanoseconds: 15_000_000_000)
+                } catch is CancellationError {
+                    break
+                } catch {
+                    continue
+                }
+            }
+        }
+    }
+
+    func stopAutoRefresh() {
+        refreshTask?.cancel()
+        refreshTask = nil
+    }
+    
+    deinit {
+        stopAutoRefresh()
+    }
+}
+
+// Helper for safely capturing self in async contexts
+private class WeakReference<T: AnyObject> {
+    weak var value: T?
+    
+    init(_ value: T) {
+        self.value = value
     }
 }

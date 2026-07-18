@@ -60,6 +60,7 @@ struct StopDetailView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Arrival.self) { arrival in
+         Group {
             if arrival.isCanceled {
                 StatusView(kind: .empty(
                     title: "Arrival cancelled",
@@ -82,6 +83,8 @@ struct StopDetailView: View {
                 ))
             }
         }
+        .id(arrival.id)
+    }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 0) {

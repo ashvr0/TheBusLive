@@ -10,14 +10,14 @@
       "bundleIdentifier": "com.thebuslive.app",
       "developerName": "ashvr0",
       "subtitle": "Live bus tracking",
-      "localizedDescription": "TheBus Live iOS app.",
+      "localizedDescription": "A modern, unofficial SwiftUI replacement for the old TheBus app for Oahu Transit Services. Live arrivals, stop and route search with island-wide GTFS coverage, vehicle tracking on a map, and favorites, with no analytics or data collection.",
       "iconURL": "https://raw.githubusercontent.com/ashvr0/TheBusLive/7f1e3c3d41c808505b9d52db9267a07d34e39cbd/TheBusLive/Assets.xcassets/AppIcon.appiconset/AppIcon-1024-dark.png",
-      "tintColor": "478778",
+      "tintColor": "3B1E54",
       "category": "utilities",
-            "screenshotURLs": [
+      "screenshotURLs": [
         "https://raw.githubusercontent.com/ashvr0/TheBusLive/main/Assets/MockUp.png"
       ],
-            "appPermissions": {
+        "appPermissions": {
         "entitlements": [],
         "privacy": {
           "NSLocationWhenInUseUsageDescription": "TheBus Live uses your location to show nearby stops and center the map on your position."

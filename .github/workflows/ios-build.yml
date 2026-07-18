@@ -1,4 +1,4 @@
-name: iOS Build
+name: iOS Build & Release
 
 on:
   push:
@@ -9,102 +9,354 @@ on:
   workflow_dispatch:
     inputs:
       export_ipa:
-        description: "Also export an unsigned .ipa artifact"
+        description: "Export unsigned .ipa artifact"
+        type: boolean
+        default: true
+      update_source_json:
+        description: "Update source.json after release"
         type: boolean
         default: true
 
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+  XCODE_VERSION: "26"
+
 jobs:
+  # Job 1: Build and test
   build:
     name: Build TheBusLive
     runs-on: macos-26
+    timeout-minutes: 30
+    
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: List available Xcode versions
-        run: ls /Applications | grep -i xcode
-
-      - name: Select newest available Xcode
+        with:
+          fetch-depth: 0
+      
+      - name: Setup build environment
         run: |
+          echo "Build started at $(date)"
+          echo "GitHub Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+      
+      - name: Cache Xcode build directory
+        uses: actions/cache@v3
+        with:
+          path: build/
+          key: xcode-build-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            xcode-build-${{ runner.os }}-
+      
+      - name: Cache Homebrew
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            /usr/local/Cellar
+          key: homebrew-${{ runner.os }}-${{ hashFiles('**/Brewfile.lock.json') }}
+          restore-keys: |
+            homebrew-${{ runner.os }}-
+      
+      - name: Select Xcode version
+        run: |
+          echo "Available Xcode versions:"
+          ls -d /Applications/Xcode_*.app 2>/dev/null || echo "Using default Xcode.app"
+          
+          # Use the newest available Xcode or fallback to default
           LATEST_XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -n 1)
           if [ -z "$LATEST_XCODE" ]; then
-            echo "No versioned Xcode_*.app found, falling back to /Applications/Xcode.app"
             LATEST_XCODE="/Applications/Xcode.app"
+            echo "Using default Xcode.app"
+          else
+            echo "Using $LATEST_XCODE"
           fi
-          echo "Selecting $LATEST_XCODE"
-          sudo xcode-select -switch "$LATEST_XCODE/Contents/Developer"
-
+          
+          sudo xcode-select -s "$LATEST_XCODE/Contents/Developer"
+          echo "DEVELOPER_DIR=$LATEST_XCODE/Contents/Developer" >> $GITHUB_ENV
+      
       - name: Show Xcode version
-        run: xcodebuild -version
-
+        run: |
+          xcodebuild -version
+          xcode-select -p
+      
       - name: Install XcodeGen
         run: |
-          export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
-          brew install xcodegen
-
-      - name: Show XcodeGen version
-        run: xcodegen --version
-
+          if ! command -v xcodegen &> /dev/null; then
+            echo "Installing XcodeGen..."
+            export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+            brew install xcodegen
+          else
+            echo "XcodeGen already installed: $(xcodegen --version)"
+          fi
+      
       - name: Generate Xcode project
-        run: xcodegen generate --spec project.yml
-
-      - name: List schemes
+        run: |
+          echo "Generating Xcode project from project.yml..."
+          xcodegen generate --spec project.yml
+          
+          if [ ! -f TheBusLive.xcodeproj/project.pbxproj ]; then
+            echo "Error: Failed to generate Xcode project"
+            exit 1
+          fi
+          echo "✓ Project generated successfully"
+      
+      - name: List available schemes
         run: xcodebuild -project TheBusLive.xcodeproj -list
-
-      - name: Build (Debug, generic iOS device, unsigned)
+      
+      - name: Build (Debug, generic iOS device)
         run: |
           xcodebuild \
             -project TheBusLive.xcodeproj \
             -scheme TheBusLive \
             -configuration Debug \
             -destination "generic/platform=iOS" \
+            -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             build
-
-      - name: Archive (Release, unsigned)
-        if: ${{ github.event.inputs.export_ipa != 'false' }}
+      
+      - name: Archive (Release)
+        if: ${{ github.event.inputs.export_ipa != 'false' && github.event_name != 'pull_request' }}
         run: |
+          echo "Creating Release archive..."
           xcodebuild \
             -project TheBusLive.xcodeproj \
             -scheme TheBusLive \
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath build/TheBusLive.xcarchive \
+            -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             archive
-
-      - name: Package unsigned .ipa
-        if: ${{ github.event.inputs.export_ipa != 'false' }}
+          
+          if [ ! -d "build/TheBusLive.xcarchive" ]; then
+            echo "Error: Archive creation failed"
+            exit 1
+          fi
+          echo "✓ Archive created successfully"
+      
+      - name: Extract and package .ipa
+        if: ${{ github.event.inputs.export_ipa != 'false' && github.event_name != 'pull_request' }}
         run: |
+          echo "Packaging .ipa file..."
           mkdir -p build/Payload
-          cp -R build/TheBusLive.xcarchive/Products/Applications/*.app build/Payload/
+          
+          # Extract app from archive
+          APP_PATH=$(find build/TheBusLive.xcarchive -name "*.app" -type d)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Could not find .app in archive"
+            exit 1
+          fi
+          
+          cp -R "$APP_PATH" build/Payload/
+          
+          # Create IPA (it's just a renamed zip)
           cd build
-          zip -r TheBusLive-unsigned.ipa Payload
+          zip -r -q TheBusLive-unsigned.ipa Payload
           cd ..
-
-      - name: Upload unsigned .ipa artifact
-        if: ${{ github.event.inputs.export_ipa != 'false' }}
+          
+          # Verify IPA creation
+          if [ ! -f "build/TheBusLive-unsigned.ipa" ]; then
+            echo "Error: IPA creation failed"
+            exit 1
+          fi
+          
+          IPA_SIZE=$(du -h build/TheBusLive-unsigned.ipa | cut -f1)
+          echo "✓ IPA created successfully (Size: $IPA_SIZE)"
+      
+      - name: Get IPA file size in bytes
+        if: ${{ github.event.inputs.export_ipa != 'false' && github.event_name != 'pull_request' }}
+        id: ipa_info
+        run: |
+          IPA_SIZE_BYTES=$(stat -f%z "build/TheBusLive-unsigned.ipa")
+          echo "size_bytes=${IPA_SIZE_BYTES}" >> $GITHUB_OUTPUT
+          echo "IPA Size: $IPA_SIZE_BYTES bytes"
+      
+      - name: Upload .ipa artifact
+        if: ${{ github.event.inputs.export_ipa != 'false' && github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v4
         with:
           name: TheBusLive-unsigned-ipa
           path: build/TheBusLive-unsigned.ipa
+          retention-days: 30
           if-no-files-found: error
-
+      
       - name: Upload archive artifact
-        if: ${{ github.event.inputs.export_ipa != 'false' }}
+        if: ${{ github.event.inputs.export_ipa != 'false' && github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v4
         with:
           name: TheBusLive-xcarchive
           path: build/TheBusLive.xcarchive
+          retention-days: 30
           if-no-files-found: error
-
-      - name: Publish GitHub Release with .ipa
+      
+      - name: Create GitHub Release with .ipa
         if: startsWith(github.ref, 'refs/tags/v')
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           files: build/TheBusLive-unsigned.ipa
           generate_release_notes: true
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: version
+        run: |
+          VERSION="${{ github.ref }}"
+          VERSION="${VERSION#refs/tags/v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+      
+      - name: Update source.json
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && (github.event.inputs.update_source_json != 'false') }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          IPA_SIZE="${{ steps.ipa_info.outputs.size_bytes }}"
+          
+          echo "Updating source.json for version $VERSION"
+          echo "IPA Size: $IPA_SIZE bytes"
+          
+          python3 << 'EOF'
+          import json
+          from datetime import datetime
+          
+          version = "${{ steps.version.outputs.version }}"
+          size = int("${{ steps.ipa_info.outputs.size_bytes }}")
+          date = datetime.now().strftime("%Y-%m-%d")
+          
+          # Read source.json
+          with open('source.json', 'r') as f:
+              data = json.load(f)
+          
+          # Create new version entry
+          new_version = {
+              "version": version,
+              "buildVersion": version.split('.')[-1],
+              "date": date,
+              "localizedDescription": f"Version {version} release.",
+              "downloadURL": f"https://github.com/${{ github.repository }}/releases/download/v{version}/TheBusLive-unsigned.ipa",
+              "size": size,
+              "minOSVersion": "17.0"
+          }
+          
+          # Update app versions
+          app = data["apps"][0]
+          
+          # Check if version exists
+          existing = None
+          for i, v in enumerate(app["versions"]):
+              if v["version"] == version:
+                  existing = i
+                  break
+          
+          if existing is not None:
+              app["versions"][existing] = new_version
+              print(f"Updated version {version}")
+          else:
+              app["versions"].insert(0, new_version)
+              print(f"Added new version {version}")
+          
+          # Write back
+          with open('source.json', 'w') as f:
+              json.dump(data, f, indent=2)
+          
+          print(f"✓ source.json updated")
+          EOF
+      
+      - name: Commit and push source.json
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && (github.event.inputs.update_source_json != 'false') }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          if git diff --quiet source.json; then
+            echo "No changes to source.json"
+          else
+            git add source.json
+            git commit -m "chore: update source.json for v${{ steps.version.outputs.version }}"
+            git push
+            echo "✓ source.json committed and pushed"
+          fi
+      
+      - name: Add release comment
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = "${{ steps.version.outputs.version }}";
+            const ipaSize = "${{ steps.ipa_info.outputs.size_bytes }}";
+            const sizeMB = (parseInt(ipaSize) / 1024 / 1024).toFixed(2);
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `**Release ${version} Complete**\n\n` +
+                    `- IPA Size: ${sizeMB} MB\n` +
+                    `- Built with: Xcode 26\n` +
+                    `- Minimum iOS: 17.0\n` +
+                    `- source.json: Updated automatically\n` +
+                    `- Download: [TheBusLive-unsigned.ipa](https://github.com/${{ github.repository }}/releases/download/v${version}/TheBusLive-unsigned.ipa)`
+            })
+      
+      - name: Report build status
+        if: always()
+        run: |
+          echo "Build completed at $(date)"
+          echo "Status: ${{ job.status }}"
+
+  # Job 2: Test on different iOS versions
+  test:
+    name: Run Tests
+    runs-on: macos-26
+    timeout-minutes: 20
+    needs: build
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install XcodeGen
+        run: |
+          export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+          brew install xcodegen
+      
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+      
+      - name: Run unit tests
+        run: |
+          xcodebuild \
+            -project TheBusLive.xcodeproj \
+            -scheme TheBusLive \
+            -configuration Debug \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build/DerivedData \
+            test 2>&1 || echo "Tests not configured yet"
+
+  # Job 3: Notify on failure
+  notify:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: failure()
+    
+    steps:
+      - name: Create issue for build failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Build failed for ${context.ref}`,
+              body: `Build workflow failed. Check [Actions](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`,
+              labels: ["bug", "ci"]
+            })

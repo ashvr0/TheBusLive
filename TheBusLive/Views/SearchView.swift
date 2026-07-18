@@ -15,6 +15,8 @@ struct SearchView: View {
     @State private var routeQuery: String = ""
     @State private var debouncedStopQuery: String = ""
     @State private var debouncedRouteQuery: String = ""
+    @State private var debounceTaskStop: Task<Void, Never>?
+    @State private var debounceTaskRoute: Task<Void, Never>?
 
     private var trimmedStopQuery: String {
         stopQuery.trimmingCharacters(in: .whitespaces)
@@ -58,6 +60,8 @@ struct SearchView: View {
                 .onChange(of: mode) { _, _ in
                     debouncedStopQuery = ""
                     debouncedRouteQuery = ""
+                    debounceTaskStop?.cancel()
+                    debounceTaskRoute?.cancel()
                 }
 
                 switch mode {
@@ -76,16 +80,28 @@ struct SearchView: View {
             }
         }
         .onChange(of: stopQuery) { _, newValue in
-            Task {
+            debounceTaskStop?.cancel()
+            debounceTaskStop = Task {
                 try? await Task.sleep(nanoseconds: 300_000_000)
-                debouncedStopQuery = newValue.trimmingCharacters(in: .whitespaces)
+                if !Task.isCancelled {
+                    debouncedStopQuery = newValue.trimmingCharacters(in: .whitespaces)
+                }
             }
         }
         .onChange(of: routeQuery) { _, newValue in
-            Task {
+            debounceTaskRoute?.cancel()
+            debounceTaskRoute = Task {
                 try? await Task.sleep(nanoseconds: 300_000_000)
-                debouncedRouteQuery = newValue.trimmingCharacters(in: .whitespaces)
+                if !Task.isCancelled {
+                    debouncedRouteQuery = newValue.trimmingCharacters(in: .whitespaces)
+                }
             }
+        }
+        .onDisappear {
+            debounceTaskStop?.cancel()
+            debounceTaskRoute?.cancel()
+            debounceTaskStop = nil
+            debounceTaskRoute = nil
         }
     }
 

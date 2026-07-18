@@ -9,8 +9,13 @@ import Foundation
 actor APIClient {
 
     static let shared = APIClient()
-
     private let session: URLSession
+    private var arrivals Cache: [String: (data: ArrivalsResponse, timestamp: Date)] = [:]
+    private let cacheExpirationSeconds: TimeInterval = 30
+    private var inFlightRequests: [String: Task<Any, Error>] = [:]
+    
+    private let cacheLock = NSLock()
+    private let requestLock = NSLock()
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -18,8 +23,33 @@ actor APIClient {
 
     // MARK: - Public requests
     func fetchArrivals(stopID: String) async throws -> ArrivalsResponse {
-        let node = try await fetchXML(.arrivals(stopID: stopID))
-        return try ArrivalsXMLMapper.map(node)
+        let cacheKey = "arrivals:\(stopID)"
+
+        if let cached = getCachedArrivals(stopID: stopID) {
+            return cached
+        }
+        
+        if let existingTask = getInFlightRequest(key: cacheKey) {
+            return try await (existingTask.value as! ArrivalsResponse)
+        }
+        
+        // Create task for this request
+        let task: Task<ArrivalsResponse, Error> = Task {
+            let node = try await fetchXML(.arrivals(stopID: stopID))
+            let response = try ArrivalsXMLMapper.map(node)
+            
+            // Cache the result
+            cacheLock.lock()
+            arrivalsCache[stopID] = (response, Date())
+            cacheLock.unlock()
+            
+            return response
+        }
+        
+        storeInFlightRequest(key: cacheKey, task: task)
+        defer { removeInFlightRequest(key: cacheKey) }
+        
+        return try await task.value
     }
 
     func fetchVehicle(number: String) async throws -> VehiclesResponse {
@@ -36,6 +66,12 @@ actor APIClient {
         let node = try await fetchXML(.routeByHeadsign(text: headsign))
         return try RouteXMLMapper.map(node)
     }
+    
+    func clearCache() {
+        cacheLock.lock()
+        arrivalsCache.removeAll()
+        cacheLock.unlock()
+    }
 
     // MARK: - Core fetch
     private func fetchXML(_ endpoint: Endpoint) async throws -> XMLNode {
@@ -50,6 +86,8 @@ actor APIClient {
         let response: URLResponse
         do {
             (data, response) = try await session.data(from: url)
+        } catch let error as URLError where error.code == .cancelled {
+            throw APIError.cancelled
         } catch {
             throw APIError.requestFailed(error)
         }
@@ -57,9 +95,24 @@ actor APIClient {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            throw APIError.httpStatus(httpResponse.statusCode)
+        
+        switch httpResponse.statusCode {
+        case 200..<300:
+            break // Success
+        case 400:
+            throw APIError.httpStatus(400, "Bad request - check your stop ID or route")
+        case 401, 403:
+            throw APIError.httpStatus(403, "API key is invalid or expired")
+        case 404:
+            throw APIError.httpStatus(404, "Resource not found")
+        case 429:
+            throw APIError.httpStatus(429, "Rate limit exceeded - too many requests")
+        case 500..<600:
+            throw APIError.httpStatus(httpResponse.statusCode, "Server error - TheBus API is unavailable")
+        default:
+            throw APIError.httpStatus(httpResponse.statusCode, "Unexpected HTTP status \(httpResponse.statusCode)")
         }
+        
         guard !data.isEmpty else {
             throw APIError.noData
         }
@@ -69,6 +122,41 @@ actor APIClient {
         } catch {
             throw APIError.decodingFailed(error)
         }
+    }
+    
+    // MARK: - Cache Management
+    private func getCachedArrivals(stopID: String) -> ArrivalsResponse? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        
+        guard let cached = arrivalsCache[stopID] else { return nil }
+        
+        let elapsed = Date().timeIntervalSince(cached.timestamp)
+        guard elapsed < cacheExpirationSeconds else {
+            arrivalsCache.removeValue(forKey: stopID)
+            return nil
+        }
+        
+        return cached.data
+    }
+    
+    // MARK: - Request Deduplication
+    private func getInFlightRequest(key: String) -> Task<Any, Error>? {
+        requestLock.lock()
+        defer { requestLock.unlock() }
+        return inFlightRequests[key]
+    }
+    
+    private func storeInFlightRequest(key: String, task: Task<Any, Error>) {
+        requestLock.lock()
+        defer { requestLock.unlock() }
+        inFlightRequests[key] = task
+    }
+    
+    private func removeInFlightRequest(key: String) {
+        requestLock.lock()
+        defer { requestLock.unlock() }
+        inFlightRequests.removeValue(forKey: key)
     }
 }
 
@@ -106,9 +194,27 @@ enum SimpleXMLParser {
         let delegate = Delegate()
         let parser = XMLParser(data: data)
         parser.delegate = delegate
-        guard parser.parse(), let root = delegate.root else {
-            throw parser.parserError ?? APIError.invalidResponse
+        
+        let success = parser.parse()
+        
+        guard let root = delegate.root else {
+            if let parserError = parser.parserError {
+                NSLog("XML parsing error: \(parserError)")
+                throw APIError.decodingFailed(parserError)
+            } else if !success {
+                let parseError = NSError(
+                    domain: "SimpleXMLParser",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "XML parsing failed without error details"]
+                )
+                NSLog("XML parsing failed: unknown error")
+                throw APIError.decodingFailed(parseError)
+            } else {
+                NSLog("XML parsing succeeded but returned no root element")
+                throw APIError.invalidResponse
+            }
         }
+        
         return root
     }
 
@@ -116,7 +222,13 @@ enum SimpleXMLParser {
         var root: XMLNode?
         private var stack: [XMLNode] = []
 
-        func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
+        func parser(
+            _ parser: XMLParser,
+            didStartElement elementName: String,
+            namespaceURI: String?,
+            qualifiedName qName: String?,
+            attributes attributeDict: [String: String] = [:]
+        ) {
             let node = XMLNode(name: elementName, parent: stack.last)
             stack.last?.children.append(node)
             stack.append(node)
@@ -132,26 +244,44 @@ enum SimpleXMLParser {
         func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
             stack.removeLast()
         }
+
+        func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
+            NSLog("XML parse error occurred: \(parseError)")
+        }
     }
 }
 
 // MARK: - Mappers
-
 enum ArrivalsXMLMapper {
     static func map(_ root: XMLNode) throws -> ArrivalsResponse {
         let stop = root.firstChild("stop")?.trimmedText
         let timestamp = root.firstChild("timestamp")?.trimmedText
         let errorMessage = root.firstChild("errorMessage")?.trimmedText
+        let arrivals: [Arrival] = root.allChildren("arrival").compactMap { node in
+            // Validate required fields
+            guard let route = node.firstChild("route")?.trimmedText, !route.isEmpty else {
+                NSLog("Warning: Arrival missing or empty required field 'route'")
+                return nil
+            }
+            
+            guard let id = node.firstChild("id")?.trimmedText, !id.isEmpty else {
+                NSLog("Warning: Arrival missing or empty required field 'id'")
+                return nil
+            }
+            
+            guard let stopTime = node.firstChild("stopTime")?.trimmedText, !stopTime.isEmpty else {
+                NSLog("Warning: Arrival \(id) missing or empty required field 'stopTime'")
+                return nil
+            }
 
-        let arrivals: [Arrival] = root.allChildren("arrival").map { node in
-            Arrival(
-                id: node.firstChild("id")?.trimmedText ?? UUID().uuidString,
+            return Arrival(
+                id: id,
                 trip: node.firstChild("trip")?.trimmedText,
-                route: node.firstChild("route")?.trimmedText ?? "",
+                route: route,
                 headsign: node.firstChild("headsign")?.trimmedText ?? "",
                 vehicle: node.firstChild("vehicle")?.trimmedText,
                 direction: node.firstChild("direction")?.trimmedText,
-                stopTime: node.firstChild("stopTime")?.trimmedText ?? "",
+                stopTime: stopTime,
                 date: node.firstChild("date")?.trimmedText,
                 estimated: (node.firstChild("estimated")?.trimmedText == "1"),
                 longitude: Double(node.firstChild("longitude")?.trimmedText ?? ""),
@@ -161,7 +291,12 @@ enum ArrivalsXMLMapper {
             )
         }
 
-        return ArrivalsResponse(stop: stop, timestamp: timestamp, errorMessage: errorMessage?.isEmpty == false ? errorMessage : nil, arrival: arrivals)
+        return ArrivalsResponse(
+            stop: stop,
+            timestamp: timestamp,
+            errorMessage: errorMessage?.isEmpty == false ? errorMessage : nil,
+            arrival: arrivals
+        )
     }
 }
 
@@ -174,10 +309,18 @@ enum VehicleXMLMapper {
             guard
                 let lat = Double(node.firstChild("latitude")?.trimmedText ?? ""),
                 let lon = Double(node.firstChild("longitude")?.trimmedText ?? "")
-            else { return nil }
+            else {
+                NSLog("Warning: Vehicle missing or invalid latitude/longitude")
+                return nil
+            }
+            
+            guard let number = node.firstChild("number")?.trimmedText, !number.isEmpty else {
+                NSLog("Warning: Vehicle missing or empty required field 'number'")
+                return nil
+            }
 
             return Vehicle(
-                number: node.firstChild("number")?.trimmedText ?? "",
+                number: number,
                 trip: node.firstChild("trip")?.trimmedText,
                 driver: node.firstChild("driver")?.trimmedText,
                 latitude: lat,
@@ -189,7 +332,11 @@ enum VehicleXMLMapper {
             )
         }
 
-        return VehiclesResponse(timestamp: timestamp, errorMessage: errorMessage?.isEmpty == false ? errorMessage : nil, vehicle: vehicles)
+        return VehiclesResponse(
+            timestamp: timestamp,
+            errorMessage: errorMessage?.isEmpty == false ? errorMessage : nil,
+            vehicle: vehicles
+        )
     }
 }
 
@@ -199,15 +346,25 @@ enum RouteXMLMapper {
         let routeID = root.firstChild("routeID")?.trimmedText
         let errorMessage = root.firstChild("errorMessage")?.trimmedText
 
-        let routes: [BusRoute] = root.allChildren("route").map { node in
-            BusRoute(
-                routeNum: node.firstChild("routeNum")?.trimmedText ?? "",
+        let routes: [BusRoute] = root.allChildren("route").compactMap { node in
+            guard let routeNum = node.firstChild("routeNum")?.trimmedText, !routeNum.isEmpty else {
+                NSLog("Warning: Route missing or empty required field 'routeNum'")
+                return nil
+            }
+            
+            return BusRoute(
+                routeNum: routeNum,
                 shapeID: node.firstChild("shapeID")?.trimmedText,
                 firstStop: node.firstChild("firstStop")?.trimmedText,
                 headsign: node.firstChild("headsign")?.trimmedText
             )
         }
 
-        return RouteResponse(routeName: routeName, routeID: routeID, errorMessage: errorMessage?.isEmpty == false ? errorMessage : nil, route: routes)
+        return RouteResponse(
+            routeName: routeName,
+            routeID: routeID,
+            errorMessage: errorMessage?.isEmpty == false ? errorMessage : nil,
+            route: routes
+        )
     }
 }

@@ -31,10 +31,8 @@ struct Stop: Identifiable, Codable, Hashable {
 }
 
 extension Stop {
-    /// A small built-in sample used only as a fallback if `stops.json`
-    /// fails to load or hasn't been generated yet. See
-    /// `Scripts/generate_stops_json.py` for producing the full dataset
-    /// from TheBus's GTFS feed.
+    /// Built in sample used only as a fallback if `stops.json`
+    /// fails to load or hasn't been generated yet.
     static let sampleStops: [Stop] = [
         Stop(stopID: "925", name: "Ala Moana Center - Mall", latitude: 21.2906, longitude: -157.8420, routeShortNames: ["8", "20", "42"]),
         Stop(stopID: "302", name: "Waikiki - Kuhio Ave", latitude: 21.2793, longitude: -157.8294, routeShortNames: ["2", "13", "20"]),

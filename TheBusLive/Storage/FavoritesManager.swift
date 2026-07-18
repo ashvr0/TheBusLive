@@ -2,7 +2,10 @@ import Foundation
 import Combine
 
 /// Persists favorite and recently-viewed stops locally via UserDefaults.
-/// the storage keysw below only matter if you need to match existing on-device data exactly.
+/// The storage keys below only matter if you need to match existing on-device data exactly.
+///
+/// Thread Safety: Marked @MainActor to ensure all state mutations happen on the main thread.
+/// File I/O operations use a dedicated dispatch queue to prevent blocking the main thread.
 @MainActor
 final class FavoritesManager: ObservableObject {
 
@@ -14,6 +17,13 @@ final class FavoritesManager: ObservableObject {
     private let maxRecents = 20
 
     private let defaults: UserDefaults
+    
+    /// Use a dedicated queue for file I/O to prevent blocking main thread
+    /// and to serialize access to UserDefaults
+    private let persistenceQueue = DispatchQueue(
+        label: "com.thebuslive.favorites.persistence",
+        qos: .userInitiated
+    )
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -32,12 +42,19 @@ final class FavoritesManager: ObservableObject {
             favorites.append(stop)
             HapticsManager.shared.success()
         }
-        save(favorites, key: favoritesKey)
+        let favoritesToSave = favorites
+        persistenceQueue.async { [weak self] in
+            self?.saveFavoritesSync(favoritesToSave)
+        }
     }
 
     func removeFavorite(at offsets: IndexSet) {
         favorites.remove(atOffsets: offsets)
-        save(favorites, key: favoritesKey)
+        let favoritesToSave = favorites
+        persistenceQueue.async { [weak self] in
+            self?.saveFavoritesSync(favoritesToSave)
+        }
+        
         HapticsManager.shared.warning()
     }
 
@@ -46,23 +63,36 @@ final class FavoritesManager: ObservableObject {
     /// `ForEach.onMove` directly.
     func moveFavorite(from source: IndexSet, to destination: Int) {
         favorites.move(fromOffsets: source, toOffset: destination)
-        save(favorites, key: favoritesKey)
+
+        let favoritesToSave = favorites
+        persistenceQueue.async { [weak self] in
+            self?.saveFavoritesSync(favoritesToSave)
+        }
     }
 
     func recordRecent(_ stop: Stop) {
+        // Remove existing entry if present (to avoid duplicates)
         recents.removeAll { $0 == stop }
+        // Insert at front
         recents.insert(stop, at: 0)
+        // Trim to max size
         if recents.count > maxRecents {
             recents.removeLast(recents.count - maxRecents)
         }
-        save(recents, key: recentsKey)
+        let recentsToSave = recents
+        persistenceQueue.async { [weak self] in
+            self?.saveRecentsSync(recentsToSave)
+        }
     }
 
     func clearRecents() {
         recents = []
-        save(recents, key: recentsKey)
+        persistenceQueue.async { [weak self] in
+            self?.saveRecentsSync([])
+        }
     }
 
+    // MARK: - Private persistence methods
     private func load() {
         favorites = decode(key: favoritesKey)
         recents = decode(key: recentsKey)
@@ -70,11 +100,84 @@ final class FavoritesManager: ObservableObject {
 
     private func decode(key: String) -> [Stop] {
         guard let data = defaults.data(forKey: key) else { return [] }
-        return (try? JSONDecoder().decode([Stop].self, from: data)) ?? []
+        
+        do {
+            return try JSONDecoder().decode([Stop].self, from: data)
+        } catch {
+            NSLog("Error decoding \(key): \(error)")
+            return []
+        }
     }
 
-    private func save(_ stops: [Stop], key: String) {
-        guard let data = try? JSONEncoder().encode(stops) else { return }
-        defaults.set(data, forKey: key)
+    /// FIX: Synchronous save method to be called on the persistence queue
+    private func saveFavoritesSync(_ stops: [Stop]) {
+        guard let data = try? JSONEncoder().encode(stops) else {
+            NSLog("Error encoding favorites")
+            return
+        }
+        defaults.set(data, forKey: favoritesKey)
+        // Ensure the write is synced to disk
+        defaults.synchronize()
+    }
+    
+    /// Synchronous save method to be called on the persistence queue
+    private func saveRecentsSync(_ stops: [Stop]) {
+        guard let data = try? JSONEncoder().encode(stops) else {
+            NSLog("Error encoding recents")
+            return
+        }
+        defaults.set(data, forKey: recentsKey)
+        // Ensure the write is synced to disk
+        defaults.synchronize()
+    }
+}
+
+// MARK: - Alternative: Actor-based implementation
+// This provides an even stronger guarantee of thread safety by using Swift's Actor model
+actor FavoritesManagerActor {
+    nonisolated let favoritesKey = "com.thebuslive.favorites"
+    nonisolated let recentsKey = "com.thebuslive.recents"
+    nonisolated let maxRecents = 20
+    
+    nonisolated private let defaults: UserDefaults
+    nonisolated private let persistenceQueue = DispatchQueue(
+        label: "com.thebuslive.favorites.persistence",
+        qos: .userInitiated
+    )
+    
+    private(set) var favorites: [Stop] = []
+    private(set) var recents: [Stop] = []
+    
+    nonisolated init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+    
+    func load() async {
+        favorites = await decode(key: favoritesKey)
+        recents = await decode(key: recentsKey)
+    }
+    
+    func isFavorite(_ stop: Stop) -> Bool {
+        favorites.contains(stop)
+    }
+    
+    func toggleFavorite(_ stop: Stop) async {
+        if let index = favorites.firstIndex(of: stop) {
+            favorites.remove(at: index)
+        } else {
+            favorites.append(stop)
+        }
+        
+        let favoritesToSave = favorites
+        persistenceQueue.async { [weak self, defaults = defaults] in
+            guard let data = try? JSONEncoder().encode(favoritesToSave) else { return }
+            defaults.set(data, forKey: self?.favoritesKey ?? "")
+            defaults.synchronize()
+        }
+    }
+    
+    private nonisolated func decode(key: String) async -> [Stop] {
+        guard let data = defaults.data(forKey: key) else { return [] }
+        return (try? JSONDecoder().decode([Stop].self, from: data)) ?? []
     }
 }
