@@ -1,19 +1,28 @@
 {
-  "name": "TheBusLive Source",
+  "name": "TheBus Live Source",
   "identifier": "com.ashvr0.thebuslive.source",
   "apiVersion": "2.2",
-  "iconURL": "",
+  "iconURL": "https://raw.githubusercontent.com/ashvr0/TheBusLive/7f1e3c3d41c808505b9d52db9267a07d34e39cbd/TheBusLive/Assets.xcassets/AppIcon.appiconset/AppIcon-1024-dark.png",
   "website": "https://github.com/ashvr0/TheBusLive",
   "apps": [
     {
-      "name": "TheBusLive",
+      "name": "TheBus Live",
       "bundleIdentifier": "com.thebuslive.app",
       "developerName": "ashvr0",
       "subtitle": "Live bus tracking",
       "localizedDescription": "TheBus Live iOS app.",
-      "iconURL": "",
+      "iconURL": "https://raw.githubusercontent.com/ashvr0/TheBusLive/7f1e3c3d41c808505b9d52db9267a07d34e39cbd/TheBusLive/Assets.xcassets/AppIcon.appiconset/AppIcon-1024-dark.png",
       "tintColor": "478778",
       "category": "utilities",
+            "screenshotURLs": [
+        "https://raw.githubusercontent.com/ashvr0/TheBusLive/main/Assets/MockUp.png"
+      ],
+            "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSLocationWhenInUseUsageDescription": "TheBus Live uses your location to show nearby stops and center the map on your position."
+        }
+    },
       "versions": [
         {
           "version": "1.0",
