@@ -1,0 +1,30 @@
+{
+  "name": "TheBusLive Source",
+  "identifier": "com.ashvr0.thebuslive.source",
+  "apiVersion": "2.2",
+  "iconURL": "",
+  "website": "https://github.com/ashvr0/TheBusLive",
+  "apps": [
+    {
+      "name": "TheBusLive",
+      "bundleIdentifier": "com.thebuslive.app",
+      "developerName": "ashvr0",
+      "subtitle": "Live bus tracking",
+      "localizedDescription": "TheBus Live iOS app.",
+      "iconURL": "",
+      "tintColor": "478778",
+      "category": "utilities",
+      "versions": [
+        {
+          "version": "1.0",
+          "buildVersion": "1",
+          "date": "2026-07-18",
+          "localizedDescription": "Initial release.",
+          "downloadURL": "https://github.com/ashvr0/TheBusLive/releases/download/v1.0.0/TheBusLive-unsigned.ipa",
+          "size": 2965023,
+          "minOSVersion": "17.0"
+        }
+      ]
+    }
+  ]
+}
