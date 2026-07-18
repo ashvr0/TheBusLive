@@ -60,13 +60,25 @@ struct StopDetailView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Arrival.self) { arrival in
-            if let vehicleNumber = arrival.vehicle, !vehicleNumber.isEmpty {
+            if arrival.isCanceled {
+                StatusView(kind: .empty(
+                    title: "Arrival cancelled",
+                    message: "This bus arrival has been cancelled and is not operating.",
+                    systemImage: "xmark.circle"
+                ))
+            } else if let vehicleNumber = arrival.vehicle, !vehicleNumber.isEmpty {
                 MapView(vehicleNumber: vehicleNumber)
+            } else if arrival.estimated {
+                StatusView(kind: .empty(
+                    title: "Vehicle not yet assigned",
+                    message: "This live arrival doesn't have a vehicle number to track yet.",
+                    systemImage: "location.slash"
+                ))
             } else {
                 StatusView(kind: .empty(
-                    title: "No vehicle assigned",
-                    message: "This arrival doesn't have a vehicle number to track yet.",
-                    systemImage: "location.slash"
+                    title: "Scheduled arrival",
+                    message: "This is a scheduled arrival. Vehicle tracking is only available for live estimates.",
+                    systemImage: "clock"
                 ))
             }
         }

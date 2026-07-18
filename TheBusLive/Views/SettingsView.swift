@@ -8,8 +8,11 @@ struct SettingsView: View {
     @AppStorage(AppPreferenceKeys.mapStyle) private var mapStyleRaw: String = AppMapStyleOption.standard.rawValue
     @AppStorage(AppPreferenceKeys.debugModeEnabled) private var debugModeEnabled: Bool = false
     @AppStorage(AppPreferenceKeys.hapticsEnabled) private var hapticsEnabled: Bool = true
+    @AppStorage(AppPreferenceKeys.apiKey) private var apiKey: String = ""
     @State private var showingClearRecentsConfirmation = false
     @State private var showingPrivacyDetails = false
+    @State private var showingAPIKeyInfo = false
+    @FocusState private var apiKeyFieldFocused: Bool
 
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -71,6 +74,35 @@ struct SettingsView: View {
                         }
                     }
                 }
+                Section {
+                    HStack {
+                        SecureField("Default key in use", text: $apiKey)
+                            .focused($apiKeyFieldFocused)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                        if !apiKey.isEmpty {
+                            Button {
+                                apiKey = ""
+                                apiKeyFieldFocused = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } header: {
+                    Text("TheBus API Key")
+                } footer: {
+                    HStack(spacing: 4) {
+                        Text("Optional. Leave blank to use the app's built-in key.")
+                        Button("Get your own key") {
+                            showingAPIKeyInfo = true
+                        }
+                        .font(.caption)
+                    }
+                }
+
                 // delte recent stops
                 Section("Data") {
                     Button(role: .destructive) {
@@ -143,6 +175,11 @@ struct SettingsView: View {
                 PrivacyDetailsView()
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
+            }
+            .alert("Get your own API key", isPresented: $showingAPIKeyInfo) {
+                Button("OK") {}
+            } message: {
+                Text("Register for a free key at hea.thebus.org (see the link under About), then paste it here.")
             }
         }
     }

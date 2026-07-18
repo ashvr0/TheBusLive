@@ -151,12 +151,16 @@ SideStore signs and installs apps using your own free or paid Apple Developer ac
 6. Launch TheBus Live from the home screen.
 
 ## Notes
-If you encounter issues, open an issue: [issue](https://github.com/ashvr0/app/issues/new).
-
-This project is licensed under the **GPL** see the [LICENSE](https://github.com/ashvr0/app?tab=GPL-3.0-1-ov-file) file for details.
-
 Vehicle tracking polls every 30 seconds while the map is open; TheBus's own AVL data is refreshed roughly once a minute, so this has headroom without over-polling.
 
-## Attribution requirement
+The app does not collect or transmit any analytics, usage data, or personal information. Favorites and recents are stored locally on your device only.
+
+If you encounter issues, open an issue: [issue](https://github.com/ashvr0/app/issues/new).
+
+## License
+This project is licensed under the **GPL** see the [LICENSE](https://github.com/ashvr0/app?tab=GPL-3.0-1-ov-file) file for details.
+
+
+## Attribution
 
 TheBus's Terms of Use require any app displaying their data to show the legend "Route and arrival data provided by permission of Oahu Transit Services, Inc." This is already included as `APIConfig.attributionText` and shown in Home, Route, and Settings screens. Keep it if you fork this project.

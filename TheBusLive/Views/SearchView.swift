@@ -13,32 +13,36 @@ struct SearchView: View {
     @State private var mode: SearchMode = .stops
     @State private var stopQuery: String = ""
     @State private var routeQuery: String = ""
+    @State private var debouncedStopQuery: String = ""
+    @State private var debouncedRouteQuery: String = ""
+
+    private var trimmedStopQuery: String {
+        stopQuery.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var trimmedRouteQuery: String {
+        routeQuery.trimmingCharacters(in: .whitespaces)
+    }
 
     private var filteredStops: [Stop] {
-        let trimmed = stopQuery.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else {
-            return []
-        }
-        let query = trimmed.lowercased()
+        guard !debouncedStopQuery.isEmpty else { return [] }
+        let query = debouncedStopQuery.lowercased()
         return Stop.allStops
-            .filter { $0.name.lowercased().contains(query) || $0.stopID == trimmed }
+            .filter { $0.name.lowercased().contains(query) || $0.stopID == debouncedStopQuery }
             .prefix(100)
-            .map { $0 }
     }
 
     private var filteredRoutes: [BusRoute] {
-        let trimmed = routeQuery.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else {
-            return []
-        }
-        let query = trimmed.lowercased()
-        return BusRoute.allRoutes
-            .filter {
-                $0.routeNum.lowercased().contains(query) ||
-                ($0.headsign ?? "").lowercased().contains(query)
-            }
-            .prefix(100)
-            .map { $0 }
+        guard !debouncedRouteQuery.isEmpty else { return [] }
+        let query = debouncedRouteQuery.lowercased()
+
+        let exactMatches = BusRoute.allRoutes.filter { $0.routeNum.lowercased() == query }
+        let partialMatches = BusRoute.allRoutes.filter {
+            $0.routeNum.lowercased().contains(query) ||
+            ($0.headsign ?? "").lowercased().contains(query)
+        }.filter { !exactMatches.contains($0) }
+
+        return (exactMatches + partialMatches).prefix(100)
     }
 
     var body: some View {
@@ -51,6 +55,10 @@ struct SearchView: View {
                 }
                 .pickerStyle(.segmented)
                 .padding()
+                .onChange(of: mode) { _, _ in
+                    debouncedStopQuery = ""
+                    debouncedRouteQuery = ""
+                }
 
                 switch mode {
                 case .stops:
@@ -67,11 +75,23 @@ struct SearchView: View {
                 RouteView(route: route)
             }
         }
+        .onChange(of: stopQuery) { _, newValue in
+            Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                debouncedStopQuery = newValue.trimmingCharacters(in: .whitespaces)
+            }
+        }
+        .onChange(of: routeQuery) { _, newValue in
+            Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                debouncedRouteQuery = newValue.trimmingCharacters(in: .whitespaces)
+            }
+        }
     }
 
     private var stopsList: some View {
         Group {
-            if stopQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+            if trimmedStopQuery.isEmpty {
                 StatusView(kind: .empty(
                     title: "Search for a stop",
                     message: "Type a stop name or stop number, like \"Ala Moana\" or \"925\".",
@@ -105,7 +125,7 @@ struct SearchView: View {
 
     private var routesList: some View {
         Group {
-            if routeQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+            if trimmedRouteQuery.isEmpty {
                 StatusView(kind: .empty(
                     title: "Search for a route",
                     message: "Type a route number or a headsign, like \"Ala Moana\" or \"20\".",

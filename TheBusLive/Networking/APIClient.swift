@@ -41,9 +41,6 @@ actor APIClient {
     // MARK: - Core fetch
 
     private func fetchXML(_ endpoint: Endpoint) async throws -> XMLNode {
-        guard APIConfig.key != "YOUR_API_KEY" else {
-            throw APIError.missingAPIKey
-        }
         guard let url = endpoint.url() else {
             throw APIError.invalidURL
         }
