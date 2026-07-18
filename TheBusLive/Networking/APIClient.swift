@@ -10,10 +10,10 @@ actor APIClient {
 
     static let shared = APIClient()
     private let session: URLSession
-    /// private var arrivals Cache: [String: (data: ArrivalsResponse, timestamp: Date)] = [:]
+    private var arrivalsCache: [String: (data: ArrivalsResponse, timestamp: Date)] = [:]
     private let cacheExpirationSeconds: TimeInterval = 30
-    private var inFlightRequests: [String: Task<Any, Error>] = [:]
-    
+    private var inFlightRequests: [String: Task<ArrivalsResponse, Error>] = [:]
+
     private let cacheLock = NSLock()
     private let requestLock = NSLock()
 
@@ -28,27 +28,27 @@ actor APIClient {
         if let cached = getCachedArrivals(stopID: stopID) {
             return cached
         }
-        
+
         if let existingTask = getInFlightRequest(key: cacheKey) {
-            return try await (existingTask.value as! ArrivalsResponse)
+            return try await existingTask.value
         }
-        
+
         // Create task for this request
         let task: Task<ArrivalsResponse, Error> = Task {
             let node = try await fetchXML(.arrivals(stopID: stopID))
             let response = try ArrivalsXMLMapper.map(node)
-            
+
             // Cache the result
             cacheLock.lock()
             arrivalsCache[stopID] = (response, Date())
             cacheLock.unlock()
-            
+
             return response
         }
-        
+
         storeInFlightRequest(key: cacheKey, task: task)
         defer { removeInFlightRequest(key: cacheKey) }
-        
+
         return try await task.value
     }
 
@@ -66,7 +66,7 @@ actor APIClient {
         let node = try await fetchXML(.routeByHeadsign(text: headsign))
         return try RouteXMLMapper.map(node)
     }
-    
+
     func clearCache() {
         cacheLock.lock()
         arrivalsCache.removeAll()
@@ -95,7 +95,7 @@ actor APIClient {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
-        
+
         switch httpResponse.statusCode {
         case 200..<300:
             break // Success
@@ -112,7 +112,7 @@ actor APIClient {
         default:
             throw APIError.httpStatus(httpResponse.statusCode, "Unexpected HTTP status \(httpResponse.statusCode)")
         }
-        
+
         guard !data.isEmpty else {
             throw APIError.noData
         }
@@ -123,36 +123,36 @@ actor APIClient {
             throw APIError.decodingFailed(error)
         }
     }
-    
+
     // MARK: - Cache Management
     private func getCachedArrivals(stopID: String) -> ArrivalsResponse? {
         cacheLock.lock()
         defer { cacheLock.unlock() }
-        
+
         guard let cached = arrivalsCache[stopID] else { return nil }
-        
+
         let elapsed = Date().timeIntervalSince(cached.timestamp)
         guard elapsed < cacheExpirationSeconds else {
             arrivalsCache.removeValue(forKey: stopID)
             return nil
         }
-        
+
         return cached.data
     }
-    
+
     // MARK: - Request Deduplication
-    private func getInFlightRequest(key: String) -> Task<Any, Error>? {
+    private func getInFlightRequest(key: String) -> Task<ArrivalsResponse, Error>? {
         requestLock.lock()
         defer { requestLock.unlock() }
         return inFlightRequests[key]
     }
-    
-    private func storeInFlightRequest(key: String, task: Task<Any, Error>) {
+
+    private func storeInFlightRequest(key: String, task: Task<ArrivalsResponse, Error>) {
         requestLock.lock()
         defer { requestLock.unlock() }
         inFlightRequests[key] = task
     }
-    
+
     private func removeInFlightRequest(key: String) {
         requestLock.lock()
         defer { requestLock.unlock() }
@@ -194,9 +194,9 @@ enum SimpleXMLParser {
         let delegate = Delegate()
         let parser = XMLParser(data: data)
         parser.delegate = delegate
-        
+
         let success = parser.parse()
-        
+
         guard let root = delegate.root else {
             if let parserError = parser.parserError {
                 NSLog("XML parsing error: \(parserError)")
@@ -214,7 +214,7 @@ enum SimpleXMLParser {
                 throw APIError.invalidResponse
             }
         }
-        
+
         return root
     }
 
@@ -263,12 +263,12 @@ enum ArrivalsXMLMapper {
                 NSLog("Warning: Arrival missing or empty required field 'route'")
                 return nil
             }
-            
+
             guard let id = node.firstChild("id")?.trimmedText, !id.isEmpty else {
                 NSLog("Warning: Arrival missing or empty required field 'id'")
                 return nil
             }
-            
+
             guard let stopTime = node.firstChild("stopTime")?.trimmedText, !stopTime.isEmpty else {
                 NSLog("Warning: Arrival \(id) missing or empty required field 'stopTime'")
                 return nil
@@ -313,7 +313,7 @@ enum VehicleXMLMapper {
                 NSLog("Warning: Vehicle missing or invalid latitude/longitude")
                 return nil
             }
-            
+
             guard let number = node.firstChild("number")?.trimmedText, !number.isEmpty else {
                 NSLog("Warning: Vehicle missing or empty required field 'number'")
                 return nil
@@ -351,7 +351,7 @@ enum RouteXMLMapper {
                 NSLog("Warning: Route missing or empty required field 'routeNum'")
                 return nil
             }
-            
+
             return BusRoute(
                 routeNum: routeNum,
                 shapeID: node.firstChild("shapeID")?.trimmedText,

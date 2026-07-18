@@ -4,11 +4,12 @@ enum APIError: LocalizedError {
     case invalidURL
     case requestFailed(Error)
     case invalidResponse
-    case httpStatus(Int)
+    case httpStatus(Int, String)
     case decodingFailed(Error)
     case serverMessage(String)
     case missingAPIKey
     case noData
+    case cancelled
 
     var errorDescription: String? {
         switch self {
@@ -18,8 +19,8 @@ enum APIError: LocalizedError {
             return "The network request failed: \(error.localizedDescription)"
         case .invalidResponse:
             return "The server returned an unexpected response."
-        case .httpStatus(let code):
-            return "The server returned status code \(code)."
+        case .httpStatus(let code, let message):
+            return "\(message) (status \(code))"
         case .decodingFailed(let error):
             return "Could not read the server's response: \(error.localizedDescription)"
         case .serverMessage(let message):
@@ -28,6 +29,8 @@ enum APIError: LocalizedError {
             return "API key not detected. An API key is required for this app to work — add yours in Settings."
         case .noData:
             return "No data was returned for this request."
+        case .cancelled:
+            return "The request was cancelled."
         }
     }
 
@@ -36,6 +39,9 @@ enum APIError: LocalizedError {
     /// one). Callers should generally treat this as "ignore" rather than
     /// showing it to the user as a failure.
     var isCancellation: Bool {
+        if case .cancelled = self {
+            return true
+        }
         if case .requestFailed(let underlying) = self,
            let urlError = underlying as? URLError,
            urlError.code == .cancelled {
