@@ -106,7 +106,7 @@ struct MapView: View {
                 case .empty:
                     StatusView(kind: .empty(
                         title: "Vehicle not found",
-                        message: "Vehicle \(vehicleNumber) isn't currently reporting a position.",
+                        message: "Bus \(vehicleNumber) isn't currently reporting a position.",
                         systemImage: "location.slash"
                     ))
                     .glassBackground(in: Rectangle())
@@ -128,7 +128,7 @@ struct MapView: View {
                 }
             }
         }
-        .navigationTitle("Vehicle \(vehicleNumber)")
+        .navigationTitle("Bus \(vehicleNumber)")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             viewModel.startAutoRefresh(number: vehicleNumber)

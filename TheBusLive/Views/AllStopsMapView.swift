@@ -14,8 +14,7 @@ struct AllStopsMapView: View {
 
     /// The stops actually rendered on the map. Recomputed only after the
     /// camera settles (see `regionUpdateTask`), rather than on every
-    /// intermediate frame of a pinch/pan gesture, which is what was
-    /// causing the lag when zooming.
+    /// intermediate frame of a pinch/pan gesture, which is what was causing the lag when zooming.
     @State private var visibleStops: [Stop] = []
     @State private var regionUpdateTask: Task<Void, Never>?
 
@@ -34,8 +33,7 @@ struct AllStopsMapView: View {
     /// Above this many stops in view, MapKit's per-annotation SwiftUI
     /// views (each a real Button + label + icon) start costing enough
     /// layout/hit-testing time per frame to visibly stutter pinch/pan.
-    /// Past this count we thin the results instead of rendering all of
-    /// them.
+    /// Past this count we thin the results instead of rendering all of them.
     private static let maxRenderedPins = 150
 
     /// Filters stops for a given region, then thins the result down to

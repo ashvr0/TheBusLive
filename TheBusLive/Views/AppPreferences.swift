@@ -1,7 +1,7 @@
 import SwiftUI
 import MapKit
 
-/// A curated set of accent colors the user can pick from in Settings.
+/// A set of accent colors the user can pick from in Settings.
 /// Stored as a raw string so it round-trips cleanly through `@AppStorage`.
 enum AppAccentColor: String, CaseIterable, Identifiable {
     case blue
@@ -33,8 +33,7 @@ enum AppAccentColor: String, CaseIterable, Identifiable {
     }
 }
 
-/// The map rendering style the user prefers across all map screens
-/// (Home preview, All Stops, and the live vehicle map).
+/// The map rendering style the user prefers across all map screens such as (Home preview, All Stops, and the live vehicle map).
 enum AppMapStyleOption: String, CaseIterable, Identifiable {
     case standard
     case satellite
@@ -59,8 +58,7 @@ enum AppMapStyleOption: String, CaseIterable, Identifiable {
     }
 }
 
-/// Central place for the `@AppStorage` keys used for user-facing
-/// preferences, so every screen reads/writes the same keys.
+/// Central place for the `@AppStorage` keys used for user-facing preferences, so every screen reads/writes the same keys.
 enum AppPreferenceKeys {
     static let accentColor = "com.thebuslive.accentColor"
     static let mapStyle = "com.thebuslive.mapStyle"

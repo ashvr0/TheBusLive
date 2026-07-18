@@ -22,13 +22,11 @@ struct ArrivalRow: View {
 
     /// TheBus prefixes some route numbers with a letter to indicate a
     /// limited-stop or express variant of a route (for example "1L" or
-    /// "40X"). Riders don't necessarily know what that suffix means, so
+    /// "2L"). Riders don't necessarily know what that suffix means, so
     /// spell it out alongside the route badge.
     private var routeVariantLabel: String? {
         let route = arrival.route.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if route.hasSuffix("L") { return "Limited Stops" }
-        if route.hasSuffix("X") { return "Express" }
-        if route.hasSuffix("A") { return "A City Express!" }
         return nil
     }
 
