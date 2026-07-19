@@ -134,11 +134,21 @@ struct StopDetailView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
                 await viewModel.loadArrivals()
+                if let route = trackedRouteNumber {
+                    await LiveActivityManager.shared.update(arrivals: viewModel.arrivals, routeNumber: route)
+                }
             }
         }
-        .onDisappear {
-            Task { await LiveActivityManager.shared.end() }
-        }
+    }
+
+    /// The route currently being Live-Activity-tracked, if any, derived
+    /// from whichever arrival's TrackButton started tracking. Since
+    /// TrackButton manages its own local isTracking state per row, we
+    /// instead just push updates for any arrival whose route matches
+    /// the currently running activity — LiveActivityManager.update
+    /// already no-ops when there's no active activity.
+    private var trackedRouteNumber: String? {
+        viewModel.arrivals.first(where: { $0.estimated && !$0.isCanceled })?.route
     }
 }
 
