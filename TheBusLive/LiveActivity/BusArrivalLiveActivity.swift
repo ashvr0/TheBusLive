@@ -4,14 +4,6 @@ import WidgetKit
 
 /// The Live Activity widget extension for TheBus Live.
 /// Shows the next bus arrival on the Dynamic Island and lock screen.
-///
-/// Add this file to a new Widget Extension target in Xcode:
-///   File > New > Target > Widget Extension
-///   Name it "TheBusLiveActivityExtension"
-///   Uncheck "Include Configuration Intent"
-///
-/// Then add BusArrivalAttributes.swift to both the main app target
-/// and this extension target.
 struct BusArrivalLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: BusArrivalAttributes.self) { context in
@@ -22,7 +14,6 @@ struct BusArrivalLiveActivity: Widget {
 
         } dynamicIsland: { context in
             DynamicIsland {
-                // Expanded view — shown when user long-presses the island
                 DynamicIslandExpandedRegion(.leading) {
                     ExpandedLeading(context: context)
                 }
@@ -33,13 +24,10 @@ struct BusArrivalLiveActivity: Widget {
                     ExpandedBottom(context: context)
                 }
             } compactLeading: {
-                // Left side of compact island
                 CompactLeading(context: context)
             } compactTrailing: {
-                // Right side of compact island
                 CompactTrailing(context: context)
             } minimal: {
-                // Single dot when two activities are competing
                 MinimalView(context: context)
             }
         }
@@ -53,7 +41,6 @@ private struct LockScreenView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            // Route badge
             VStack(spacing: 2) {
                 Text(context.attributes.routeNumber)
                     .font(.system(size: 18, weight: .black, design: .rounded))
@@ -72,7 +59,6 @@ private struct LockScreenView: View {
                 }
             }
 
-            // Stop and arrival info
             VStack(alignment: .leading, spacing: 3) {
                 Text(context.attributes.stopName)
                     .font(.caption)
@@ -110,7 +96,6 @@ private struct LockScreenView: View {
 
             Spacer()
 
-            // Countdown
             if context.state.isCancelled {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 28))
@@ -218,7 +203,6 @@ private struct ExpandedBottom: View {
 
             Spacer()
 
-            // Live indicator or next bus
             if context.state.isLive && !context.state.isCancelled {
                 HStack(spacing: 3) {
                     Image(systemName: "dot.radiowaves.left.and.right")
@@ -309,41 +293,4 @@ private struct MinimalView: View {
                 .foregroundStyle(.white)
         }
     }
-}
-
-// MARK: - Preview
-
-#Preview("Lock Screen", as: .content, using: BusArrivalAttributes(
-    stopName: "Ala Moana Center",
-    stopID: "925",
-    routeNumber: "8",
-    headsign: "Kalihi via Downtown",
-    isExpress: false
-)) {
-    BusArrivalLiveActivity()
-} contentStates: {
-    BusArrivalAttributes.ContentState(
-        minutesAway: 4,
-        stopTime: "3:45 PM",
-        isLive: true,
-        isCancelled: false,
-        nextStopTime: "4:02 PM",
-        lastUpdated: Date()
-    )
-    BusArrivalAttributes.ContentState(
-        minutesAway: 0,
-        stopTime: "3:45 PM",
-        isLive: true,
-        isCancelled: false,
-        nextStopTime: "4:02 PM",
-        lastUpdated: Date()
-    )
-    BusArrivalAttributes.ContentState(
-        minutesAway: nil,
-        stopTime: "3:45 PM",
-        isLive: false,
-        isCancelled: true,
-        nextStopTime: nil,
-        lastUpdated: Date()
-    )
 }
