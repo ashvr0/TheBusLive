@@ -7,19 +7,29 @@ struct StopRow: View {
     var isFavorite: Bool = false
     var onToggleFavorite: (() -> Void)? = nil
 
+    private var hasExpressRoute: Bool {
+        stop.routeShortNames.contains { RouteCategory.isExpress(routeNum: $0) }
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "signpost.right.fill")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(hasExpressRoute ? BusRoute.expressColor : Color.accentColor)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
                 MarqueeText(text: stop.name, font: .subheadline, fontWeight: .medium)
 
-                Text("Stop \(stop.stopID)" + (stop.routeShortNames.isEmpty ? "" : " · Routes \(stop.routeShortNames.joined(separator: ", "))"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text("Stop \(stop.stopID)" + (stop.routeShortNames.isEmpty ? "" : " · Routes \(stop.routeShortNames.joined(separator: ", "))"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    if hasExpressRoute {
+                        ExpressBadge()
+                    }
+                }
             }
 
             Spacer()

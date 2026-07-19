@@ -17,6 +17,14 @@ struct StopDetailView: View {
         "Stop \(stop.stopID)"
     }
 
+    /// "Routes 1, 2, 8" line, shown under the stop number when the stop
+    /// has known route data, so riders can see what serves this stop
+    /// without scanning the arrivals list below.
+    private var routesSubtitle: String? {
+        guard !stop.routeShortNames.isEmpty else { return nil }
+        return "Routes \(stop.routeShortNames.joined(separator: ", "))"
+    }
+
     /// "Last refresh: h:mm a" line, shown once arrivals have loaded at
     /// least once. Uses the device's current locale so the time renders
     /// in whatever 12h/24h format the user's system is set to, rather
@@ -98,6 +106,11 @@ struct StopDetailView: View {
                     Text(stopSubtitle)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                    if let routesSubtitle {
+                        Text(routesSubtitle)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                     if let refreshSubtitle {
                         Text(refreshSubtitle)
                             .font(.caption2)

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Represents a single TheBus route entry, matching the `route`
 /// element returned by `http://api.thebus.org/route/`.
@@ -42,4 +43,14 @@ extension BusRoute {
         }
         return decoded
     }()
+
+    var isExpressRoute: Bool {
+        RouteCategory.isExpress(routeNum: routeNum)
+    }
+
+    /// Consistent accent for marking Express routes across search
+    /// results, arrival rows, stop rows, and the map. Kept separate from
+    /// `Color.accentColor` (the user's chosen app accent) so Express
+    /// status reads the same regardless of accent color preference.
+    static let expressColor = Color.purple
 }

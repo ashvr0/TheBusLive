@@ -20,6 +20,10 @@ struct ArrivalRow: View {
         return "\(minutes) min"
     }
 
+    private var isExpressRoute: Bool {
+        RouteCategory.isExpress(routeNum: arrival.route)
+    }
+
     /// TheBus prefixes some route numbers with a letter to indicate a
     /// limited-stop or express variant of a route (for example "1L" or
     /// "2L"). Riders don't necessarily know what that suffix means, so
@@ -48,13 +52,13 @@ struct ArrivalRow: View {
         HStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(Color.accentColor.opacity(0.15))
+                    .fill((isExpressRoute ? BusRoute.expressColor : Color.accentColor).opacity(0.15))
                     .frame(width: 44, height: 44)
                 Text(arrival.route)
                     .font(.headline)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(isExpressRoute ? BusRoute.expressColor : Color.accentColor)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -62,7 +66,10 @@ struct ArrivalRow: View {
                     Text("Bus \(arrival.route)")
                         .font(.caption)
                         .fontWeight(.semibold)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(isExpressRoute ? BusRoute.expressColor : Color.accentColor)
+                    if isExpressRoute {
+                        ExpressBadge()
+                    }
                     if let routeVariantLabel {
                         Text("· \(routeVariantLabel)")
                             .font(.caption)
@@ -130,6 +137,12 @@ struct ArrivalRow: View {
             vehicle: nil, direction: "Westbound", stopTime: "4:02 PM",
             date: nil, estimated: false, longitude: nil, latitude: nil,
             shape: nil, canceled: 1
+        ))
+        ArrivalRow(arrival: Arrival(
+            id: "3", trip: "t3", route: "A", headsign: "UH Manoa",
+            vehicle: "205", direction: "Eastbound", stopTime: "4:10 PM",
+            date: nil, estimated: true, longitude: nil, latitude: nil,
+            shape: nil, canceled: 0
         ))
     }
 }

@@ -74,7 +74,15 @@ struct SettingsView: View {
                     }
 
                     Toggle(isOn: $hapticsEnabled) {
-                        Label("Haptic Feedback", systemImage: "hand.tap")
+                        Label {
+                            Text("Haptic Feedback")
+                        } icon: {
+                            // Filled icon when on, outline when off, so the
+                            // row's own icon reflects the toggle state at a
+                            // glance rather than relying on the switch color alone.
+                            Image(systemName: hapticsEnabled ? "hand.tap.fill" : "hand.tap")
+                                .contentTransition(.symbolEffect(.replace))
+                        }
                     }
                     .onChange(of: hapticsEnabled) { _, newValue in
                         if newValue {

@@ -15,9 +15,18 @@ struct MapView: View {
         (AppMapStyleOption(rawValue: mapStyleRaw) ?? .standard).mapStyle
     }
 
+    private var trackedRouteShortName: String? {
+        viewModel.vehicles.first?.routeShortName
+    }
+
+    private var isTrackedRouteExpress: Bool {
+        guard let trackedRouteShortName else { return false }
+        return RouteCategory.isExpress(routeNum: trackedRouteShortName)
+    }
+
     private var routePolylines: [[CLLocationCoordinate2D]] {
-        guard let routeShortName = viewModel.vehicles.first?.routeShortName else { return [] }
-        return RouteShapes.polylines(forRouteShortName: routeShortName)
+        guard let trackedRouteShortName else { return [] }
+        return RouteShapes.polylines(forRouteShortName: trackedRouteShortName)
     }
 
     /// Stops along the vehicle's current route, so riders can see where
@@ -26,8 +35,8 @@ struct MapView: View {
     /// a vehicle and on a stop don't always come from the API in exactly
     /// the same format (e.g. "8" vs "08", or trailing whitespace).
     private var routeStops: [Stop] {
-        guard let routeShortName = viewModel.vehicles.first?.routeShortName else { return [] }
-        let target = routeShortName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let trackedRouteShortName else { return [] }
+        let target = trackedRouteShortName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return Stop.allStops.filter { stop in
             stop.routeShortNames.contains { candidate in
                 candidate.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == target
@@ -76,7 +85,10 @@ struct MapView: View {
             Map(position: $viewModel.cameraPosition) {
                 ForEach(Array(routePolylines.enumerated()), id: \.offset) { _, points in
                     MapPolyline(coordinates: points)
-                        .stroke(Color.accentColor.opacity(0.6), lineWidth: 3)
+                        .stroke(
+                            (isTrackedRouteExpress ? BusRoute.expressColor : Color.accentColor).opacity(0.6),
+                            lineWidth: 3
+                        )
                 }
 
                 ForEach(routeStops) { stop in
@@ -85,16 +97,22 @@ struct MapView: View {
                             HapticsManager.shared.light()
                             previewStop = stop
                         } label: {
-                            RouteStopPin(isNextStop: stop.id == nearestUpcomingStop?.id)
-                                .frame(width: 32, height: 32)
-                                .contentShape(Rectangle())
+                            RouteStopPin(
+                                isNextStop: stop.id == nearestUpcomingStop?.id,
+                                isExpress: isTrackedRouteExpress
+                            )
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .popover(item: Binding(
                             get: { previewStop?.id == stop.id ? previewStop : nil },
                             set: { previewStop = $0 }
                         )) { selectedStop in
-                            StopArrivalsPreview(stop: selectedStop) {
+                            StopArrivalsPreview(
+                                stop: selectedStop,
+                                routeShortName: trackedRouteShortName
+                            ) {
                                 previewStop = nil
                                 detailStop = selectedStop
                             }
@@ -105,7 +123,7 @@ struct MapView: View {
 
                 ForEach(viewModel.vehicles) { vehicle in
                     Annotation(vehicle.routeShortName ?? vehicle.number, coordinate: vehicle.coordinate) {
-                        VehicleMarker(vehicle: vehicle)
+                        VehicleMarker(vehicle: vehicle, isExpress: isTrackedRouteExpress)
                     }
                 }
             }
@@ -168,10 +186,16 @@ struct MapView: View {
 
 private struct RouteStopPin: View {
     let isNextStop: Bool
+    let isExpress: Bool
+
+    private var tintColor: Color {
+        if isNextStop { return isExpress ? BusRoute.expressColor : Color.accentColor }
+        return Color.secondary.opacity(0.5)
+    }
 
     var body: some View {
         Circle()
-            .fill(isNextStop ? Color.accentColor : Color.secondary.opacity(0.5))
+            .fill(tintColor)
             .frame(width: isNextStop ? 12 : 7, height: isNextStop ? 12 : 7)
             .overlay(
                 Circle()
@@ -183,6 +207,7 @@ private struct RouteStopPin: View {
 
 private struct VehicleMarker: View {
     let vehicle: Vehicle
+    let isExpress: Bool
 
     var body: some View {
         VStack(spacing: 2) {
@@ -190,7 +215,7 @@ private struct VehicleMarker: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.white)
                 .padding(8)
-                .background(Circle().fill(Color.accentColor))
+                .background(Circle().fill(isExpress ? BusRoute.expressColor : Color.accentColor))
                 .shadow(radius: 2)
         }
     }
@@ -200,11 +225,21 @@ private struct VehicleInfoCard: View {
     let vehicle: Vehicle
     var nextStop: Stop? = nil
 
+    private var isExpress: Bool {
+        guard let routeShortName = vehicle.routeShortName else { return false }
+        return RouteCategory.isExpress(routeNum: routeShortName)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Route \(vehicle.routeShortName ?? "?")")
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    Text("Route \(vehicle.routeShortName ?? "?")")
+                        .font(.headline)
+                    if isExpress {
+                        ExpressBadge()
+                    }
+                }
                 Spacer()
                 if let minutes = vehicle.adherenceMinutes {
                     Text(adherenceText(minutes))
@@ -224,7 +259,7 @@ private struct VehicleInfoCard: View {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.forward.circle.fill")
                         .font(.caption)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(isExpress ? BusRoute.expressColor : Color.accentColor)
                     Text("Next stop:")
                         .font(.caption)
                         .foregroundStyle(.secondary)

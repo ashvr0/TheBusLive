@@ -8,6 +8,12 @@ struct SearchView: View {
         var id: String { rawValue }
     }
 
+    private enum RouteFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case express = "Express"
+        var id: String { rawValue }
+    }
+
     @EnvironmentObject private var favoritesManager: FavoritesManager
 
     @State private var mode: SearchMode = .stops
@@ -17,6 +23,7 @@ struct SearchView: View {
     @State private var debouncedRouteQuery: String = ""
     @State private var debounceTaskStop: Task<Void, Never>?
     @State private var debounceTaskRoute: Task<Void, Never>?
+    @State private var routeFilter: RouteFilter = .all
 
     private var trimmedStopQuery: String {
         stopQuery.trimmingCharacters(in: .whitespaces)
@@ -44,7 +51,9 @@ struct SearchView: View {
             ($0.headsign ?? "").lowercased().contains(query)
         }.filter { !exactMatches.contains($0) }
 
-        return Array((exactMatches + partialMatches).prefix(100))
+        let matched = exactMatches + partialMatches
+        let scoped = routeFilter == .express ? matched.filter(\.isExpressRoute) : matched
+        return Array(scoped.prefix(100))
     }
 
     var body: some View {
@@ -154,23 +163,63 @@ struct SearchView: View {
                     systemImage: "magnifyingglass"
                 ))
             } else {
-                List(filteredRoutes) { route in
-                    NavigationLink(value: route) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Route \(route.routeNum)")
-                                .font(.headline)
-                            if let headsign = route.headsign, !headsign.isEmpty {
-                                Text(headsign)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
+                VStack(spacing: 0) {
+                    Picker("Route type", selection: $routeFilter) {
+                        ForEach(RouteFilter.allCases) { filter in
+                            Text(filter.rawValue).tag(filter)
                         }
                     }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
+                    List(filteredRoutes) { route in
+                        NavigationLink(value: route) {
+                            RouteResultRow(route: route)
+                        }
+                    }
+                    .listStyle(.insetGrouped)
                 }
-                .listStyle(.insetGrouped)
             }
         }
         .searchable(text: $routeQuery, prompt: "Route number or headsign")
+    }
+}
+
+private struct RouteResultRow: View {
+    let route: BusRoute
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text("Route \(route.routeNum)")
+                    .font(.headline)
+                if route.isExpressRoute {
+                    ExpressBadge()
+                }
+            }
+            if let headsign = route.headsign, !headsign.isEmpty {
+                Text(headsign)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// Small capsule marking a route as one of TheBus's Express routes
+/// (A, C, E, U, W). Reused across search results, arrival rows, and
+/// stop rows so Express status reads consistently throughout the app.
+struct ExpressBadge: View {
+    var body: some View {
+        Text("Express")
+            .font(.caption2)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(BusRoute.expressColor.opacity(0.15), in: Capsule())
+            .foregroundStyle(BusRoute.expressColor)
     }
 }
 

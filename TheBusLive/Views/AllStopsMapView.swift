@@ -108,9 +108,12 @@ struct AllStopsMapView: View {
                         HapticsManager.shared.light()
                         selectedStop = stop
                     } label: {
-                        StopPin(isFavorite: favoritesManager.isFavorite(stop))
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
+                        StopPin(
+                            isFavorite: favoritesManager.isFavorite(stop),
+                            isExpress: stop.routeShortNames.contains { RouteCategory.isExpress(routeNum: $0) }
+                        )
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -163,11 +166,17 @@ struct AllStopsMapView: View {
 
 private struct StopPin: View {
     let isFavorite: Bool
+    let isExpress: Bool
+
+    private var tintColor: Color {
+        if isFavorite { return .yellow }
+        return isExpress ? BusRoute.expressColor : Color.accentColor
+    }
 
     var body: some View {
         Image(systemName: isFavorite ? "star.circle.fill" : "mappin.circle.fill")
             .font(.system(size: 22))
-            .foregroundStyle(isFavorite ? .yellow : Color.accentColor)
+            .foregroundStyle(tintColor)
             .background(
                 Circle()
                     .fill(.white)
