@@ -280,7 +280,10 @@ jobs:
           else
             git add source.json
             git commit -m "chore: update source.json for v${{ steps.version.outputs.version }}"
-            git push
+            # Tag builds leave the checkout in detached HEAD, so a bare
+            # `git push` has no upstream to target. Push explicitly to
+            # main regardless of which ref triggered this run.
+            git push origin HEAD:main
             echo "✓ source.json committed and pushed"
           fi
       
