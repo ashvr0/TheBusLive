@@ -35,16 +35,19 @@ struct StopDetailView: View {
             switch viewModel.state {
             case .idle, .loading:
                 StatusView(kind: .loading)
+                    .transition(.opacity)
             case .empty:
                 StatusView(kind: .empty(
                     title: "No arrivals right now",
                     message: "There are no buses currently scheduled or predicted for this stop.",
                     systemImage: "clock"
                 ))
+                .transition(.opacity)
             case .failed(let message):
                 StatusView(kind: .error(message: message, retry: {
                     Task { await viewModel.loadArrivals() }
                 }))
+                .transition(.opacity)
             case .loaded:
                 List(viewModel.arrivals) { arrival in
                     NavigationLink(value: arrival) {
@@ -55,8 +58,10 @@ struct StopDetailView: View {
                 .refreshable {
                     await viewModel.loadArrivals()
                 }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: viewModel.state)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: Arrival.self) { arrival in
@@ -109,6 +114,8 @@ struct StopDetailView: View {
                 } label: {
                     Image(systemName: favoritesManager.isFavorite(stop) ? "star.fill" : "star")
                         .foregroundStyle(favoritesManager.isFavorite(stop) ? .yellow : .primary)
+                        .symbolEffect(.bounce, value: favoritesManager.isFavorite(stop))
+                        .animation(.spring(response: 0.3, dampingFraction: 0.5), value: favoritesManager.isFavorite(stop))
                 }
                 .modifier(GlassButtonModifier())
             }

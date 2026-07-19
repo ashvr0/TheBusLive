@@ -1,4 +1,10 @@
 import SwiftUI
+import SafariServices
+
+private struct IdentifiableURL: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
+}
 
 struct SettingsView: View {
 
@@ -13,10 +19,11 @@ struct SettingsView: View {
     @State private var showingPrivacyDetails = false
     @State private var showingAPIKeyInfo = false
     @State private var showingMissingKeyAlert = false
+    @State private var selectedURL: IdentifiableURL?
     @FocusState private var apiKeyFieldFocused: Bool
 
     private var appVersion: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
         return "\(version) (\(build))"
     }
@@ -117,16 +124,32 @@ struct SettingsView: View {
                 // About section
                 Section("About") {
                     LabeledContent("Version", value: appVersion)
-                    Link(destination: URL(string: "https://api.thebus.org/NewAccount/")!) {
+                    Button {
+                        if let url = URL(string: "https://api.thebus.org/NewAccount/") {
+                            selectedURL = IdentifiableURL(url: url)
+                        }
+                    } label: {
                         Label("TheBus API registration", systemImage: "link")
                     }
-                    Link(destination: URL(string: "https://www.thebus.org")!) {
+                    Button {
+                        if let url = URL(string: "https://www.thebus.org") {
+                            selectedURL = IdentifiableURL(url: url)
+                        }
+                    } label: {
                         Label("TheBus website", systemImage: "safari")
                     }
-                    Link(destination: URL(string: "https://github.com/ashvr0")!) {
+                    Button {
+                        if let url = URL(string: "https://github.com/ashvr0") {
+                            selectedURL = IdentifiableURL(url: url)
+                        }
+                    } label: {
                         Label("Made by ashvr0", systemImage: "chevron.left.forwardslash.chevron.right")
                     }
-                    Link(destination: URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!) {
+                    Button {
+                        if let url = URL(string: "https://www.gnu.org/licenses/gpl-3.0.html") {
+                            selectedURL = IdentifiableURL(url: url)
+                        }
+                    } label: {
                         Label("Free forever, GPLv3 licensed", systemImage: "checkmark.seal")
                     }
                     Button {
@@ -179,6 +202,9 @@ struct SettingsView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(item: $selectedURL) { identifiableURL in
+                SafariView(url: identifiableURL.url)
+            }
             .alert("Get your own API key", isPresented: $showingAPIKeyInfo) {
                 Button("OK") {}
             } message: {
@@ -196,6 +222,18 @@ struct SettingsView: View {
             }
         }
     }
+}
+
+/// Presents a URL in an in-app Safari sheet rather than switching to the
+/// standalone Safari app, so the user stays inside TheBus Live.
+struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) { }
 }
 
 /// A short, plain-language explanation of the app's data practices,
@@ -221,17 +259,22 @@ private struct PrivacyDetailsView: View {
         Point(
             systemImage: "iphone",
             title: "Everything stays on your device",
-            detail: "Favorites and recently viewed stops are stored locally on your device only, using standard iOS storage. They're never uploaded anywhere."
+            detail: "Favorites, recent stops, preferences, and app settings are stored locally on your device only, using standard iOS storage. They're never uploaded anywhere."
         ),
         Point(
             systemImage: "person.2.slash",
-            title: "No third parties",
-            detail: "There are no third-party analytics SDKs, ad networks, or trackers built into this app."
+            title: "No tracking or third parties",
+            detail: "This app contains no analytics SDKs, advertising networks, user tracking tools, or data brokers."
         ),
         Point(
             systemImage: "network",
-            title: "Network requests",
-            detail: "The only network calls this app makes are directly to TheBus's official Web API (api.thebus.org), to fetch live arrivals, routes, and vehicle positions. No request is routed through any other server."
+            title: "Direct connection to TheBus",
+            detail: "Transit information is fetched directly from TheBus's official Web API. Requests are not routed through our servers and are not used to build a user profile."
+        ),
+        Point(
+            systemImage: "lock.shield",
+            title: "Your API key stays private",
+            detail: "Your TheBus API key is stored securely on your device and is only used to request transit data from TheBus."
         )
     ]
 
@@ -260,9 +303,15 @@ private struct PrivacyDetailsView: View {
                 }
 
                 Section {
-                    Text("Our promise: this will always be a free, open source app with no ads and no data collection. If that ever changes, it'll be called out clearly here, not buried in fine print.")
+                    Text("Our promise: this app will remain free, open source, and free of ads and tracking. Any future privacy related changes will be clearly explained here.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    
+                    Divider()
+
+                    Text("Privacy statement last updated: July 16, 2026.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
                 }
             }
             .navigationTitle("Privacy")

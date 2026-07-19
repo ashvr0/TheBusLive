@@ -30,6 +30,8 @@ struct StopRow: View {
                 Button(action: onToggleFavorite) {
                     Image(systemName: isFavorite ? "star.fill" : "star")
                         .foregroundStyle(isFavorite ? .yellow : .secondary)
+                        .symbolEffect(.bounce, value: isFavorite)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isFavorite)
                 }
                 .buttonStyle(.plain)
             }

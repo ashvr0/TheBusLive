@@ -51,7 +51,7 @@ TheBusLive/
 │   │   ├── SearchView.swift     Stop and route search
 │   │   ├── StopDetailView.swift Live arrivals list
 │   │   ├── RouteView.swift      Route details with polyline
-│   │   ├── MapView.swift        Vehicle tracking map
+│   │   ├── MapView.swift        Vehicle tracking map, controls, and styling
 │   │   ├── AllStopsMapView.swift Island-wide stops with smart thinning
 │   │   ├── FavoritesView.swift  Drag-to-reorder starred stops
 │   │   ├── SettingsView.swift   Appearance, haptics, debug, privacy
@@ -60,8 +60,7 @@ TheBusLive/
 │   │   ├── StatusView.swift     Loading/empty/error placeholder
 │   │   ├── MarqueeText.swift    Auto-scrolling text for long labels
 │   │   ├── HapticsManager.swift Centralized haptic feedback
-│   │   ├── GlassCompat.swift    iOS 26 Liquid Glass backcompat
-│   │   └── MapView.swift        Map controls and styling
+│   │   └── GlassCompat.swift    iOS 26 Liquid Glass backcompat
 │   └── Storage/
 │       └── FavoritesManager.swift Favorites/recents persistence
 └── .github/workflows/ios-build.yml CI/CD
@@ -85,42 +84,34 @@ There is no dedicated stop search endpoint in the official API. This app ships w
 
 Because responses are XML, `APIClient.swift` includes a small dependency-free `XMLParser`-based mapper rather than pulling in a third-party XML or JSON library.
 
-## Setup: adding your API key
-
-1. Register for a free AppID at **https://hea.thebus.org/api_info.asp**. Registration requires an email address; OTS uses it to notify you of API changes. Each AppID is limited to 250,000 requests/day by default, and is deleted after 6 months of inactivity.
-2. Open `TheBusLive/Networking/APIConfig.swift`.
-3. Replace the placeholder:
-
-   ```swift
-   static let key = "YOUR_API_KEY"
-   ```
-
-   with your actual AppID:
-
-   ```swift
+## Setup: creating your API key
+ 
+1. Register for a free AppID at **https://api.thebus.org/NewAccount/**. Registration requires an email address; OTS uses it to notify you of API changes. Each AppID is limited to 250,000 requests/day by default and is deleted after 6 months of inactivity. You may request a higher daily limit for an AppID by emailing api@thebus.org.
+2. Open the app.
+3. Replace the placeholder API key in `APIConfig.swift` with your actual AppID:
+```swift
    static let key = "abcd1234-your-real-appid"
-   ```
+```
 4. Save. No other code changes are required; every request in `APIClient` reads from `APIConfig.key`.
-
 If you build or run without replacing the placeholder, the app will surface a clear "No TheBus API key is configured" error instead of making a doomed network request.
-
+ 
 ## Building locally with Xcode
-
+ 
 Requires macOS with Xcode 15.4+ installed.
-
+ 
 ```bash
 brew install xcodegen
 cd TheBusLive
 xcodegen generate
 open TheBusLive.xcodeproj
 ```
-
+ 
 Then select the `TheBusLive` scheme and a simulator or device, and build/run as usual (Cmd+R).
-
+ 
 ## Building via GitHub Actions
-
+ 
 The workflow at `.github/workflows/ios-build.yml` runs on `macos-26` runners and:
-
+ 
 1. Selects Xcode 26
 2. Installs XcodeGen via Homebrew
 3. Generates `TheBusLive.xcodeproj` from `project.yml`
@@ -128,39 +119,32 @@ The workflow at `.github/workflows/ios-build.yml` runs on `macos-26` runners and
 5. Archives the Release configuration, unsigned
 6. Packages an unsigned `.ipa` (a zipped `Payload/TheBusLive.app`)
 7. Uploads both the `.ipa` and the raw `.xcarchive` as workflow artifacts
-
 It triggers on pushes and pull requests to `main`, and can also be run manually from the Actions tab (`workflow_dispatch`).
-
-To get your build artifacts:
-
-1. Push to `main` (or open a PR, or trigger manually).
-2. Go to the **Actions** tab in GitHub, open the latest **iOS Build** run.
-3. Download the `TheBusLive-unsigned-ipa` artifact.
-
-This `.ipa` is **unsigned**. That's intentional: CI has no access to your Apple ID or signing certificate, and unsigned output is what sideloading tools like SideStore expect you to sign yourself, on your own machine or via SideStore's own signing flow.
-
+ 
+To get your build artifacts, you can either fork this repo and open a PR (e.g. to add a build toggle), or install directly by checking the latest releases at https://github.com/ashvr0/TheBusLive/releases. The IPA can be installed via SideStore, LiveContainer, or any similar sideloading method, using: https://raw.githubusercontent.com/ashvr0/TheBusLive/refs/heads/main/source.json
+ 
 ## Installing via SideStore
-
+ 
 SideStore signs and installs apps using your own free or paid Apple Developer account, refreshing the signature periodically (roughly every 7 days for a free account).
-
+ 
 1. Install SideStore on your iPhone/iPad following SideStore's own setup guide (https://sidestore.io), including pairing it with SideServer/AltServer on a companion computer, which is required for the initial install and periodic re-signing.
-2. Download `TheBusLive-unsigned-ipa` from the GitHub Actions run (see above) and unzip it if needed so you have a `.ipa` file, or keep it zipped, either works with SideStore's import.
+2. Download `TheBusLive-unsigned-ipa` from the GitHub Actions run (see above) and unzip it if needed so you have a `.ipa` file, or keep it zipped — either works with SideStore's import.
 3. Transfer the `.ipa` to your iOS device (AirDrop, Files app, iCloud Drive, or the Share extension, depending on your SideStore version).
 4. Open the file with SideStore, or use SideStore's "+" / import button and pick the `.ipa` from Files.
 5. SideStore will sign the app with your Apple ID's development certificate and install it, prompting you to trust the developer profile in Settings → General → VPN & Device Management if this is the first app signed with that certificate.
 6. Launch TheBus Live from the home screen.
-
 ## Notes
+ 
 Vehicle tracking polls every 30 seconds while the map is open; TheBus's own AVL data is refreshed roughly once a minute, so this has headroom without over-polling.
-
+ 
 The app does not collect or transmit any analytics, usage data, or personal information. Favorites and recents are stored locally on your device only.
-
+ 
 If you encounter issues, open an issue: [issue](https://github.com/ashvr0/app/issues/new).
-
+ 
 ## License
-This project is licensed under the **GPL** see the [LICENSE](https://github.com/ashvr0/app?tab=GPL-3.0-1-ov-file) file for details.
-
-
+ 
+This project is licensed under the **GPL** — see the [LICENSE](https://github.com/ashvr0/app?tab=GPL-3.0-1-ov-file) file for details.
+ 
 ## Attribution
-
+ 
 TheBus's Terms of Use require any app displaying their data to show the legend "Route and arrival data provided by permission of Oahu Transit Services, Inc." This is already included as `APIConfig.attributionText` and shown in Home, Route, and Settings screens. Keep it if you fork this project.

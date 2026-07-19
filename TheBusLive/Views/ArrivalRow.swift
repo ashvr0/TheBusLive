@@ -103,6 +103,8 @@ struct ArrivalRow: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundStyle(.primary)
+                        .contentTransition(.numericText())
+                        .animation(.default, value: countdownText)
                 }
                 Text(displayStopTime)
                     .font(countdownText != nil && !arrival.isCanceled ? .caption : .subheadline)
