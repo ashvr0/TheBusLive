@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// TheBus's lettered core Express routes (A, C, E, U, W) — the only
 /// service tier the API's `routeNum` alone can reliably identify.
@@ -13,5 +14,18 @@ enum RouteCategory {
         expressRouteNumbers.contains(
             routeNum.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         )
+    }
+}
+
+/// Small pill badge marking a route/arrival/stop as Express service.
+struct ExpressBadge: View {
+    var body: some View {
+        Text("EXPRESS")
+            .font(.caption2)
+            .fontWeight(.bold)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(BusRoute.expressColor, in: Capsule())
+            .foregroundStyle(.white)
     }
 }

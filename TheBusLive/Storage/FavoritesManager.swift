@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 /// Metadata for a favorited stop, including user-added notes.
-struct FavoriteStopMetadata: Codable, Hashable {
+struct FavoriteStopMetadata: Identifiable, Codable, Hashable {
     let stop: Stop
     /// User-provided note like "home -> work" or "work -> home"
     let note: String
