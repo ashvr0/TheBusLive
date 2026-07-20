@@ -35,23 +35,21 @@ targets:
       - path: TheBusLive/LiveActivity/BusArrivalAttributes.swift
     resources:
       - path: TheBusLive/Assets.xcassets
-    info:
-      path: TheBusLive/Info.plist
-      properties:
-        CFBundleDisplayName: TheBus Live
-        CFBundleShortVersionString: "1.0.1"
-        CFBundleVersion: "1"
-        UILaunchScreen: {}
-        NSLocationWhenInUseUsageDescription: "TheBus Live uses your location to show nearby stops and center the map on your position."
-        NSSupportsLiveActivities: true
-        NSSupportsLiveActivitiesFrequentUpdates: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.thebuslive.app
         PRODUCT_NAME: TheBus Live
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # Info.plist is hand-written, not generated. Setting this to YES
+        # while also pointing INFOPLIST_FILE at a real plist causes
+        # XcodeGen to regenerate/overwrite it from a much thinner key
+        # set, silently dropping keys the extension target actually
+        # needs. Same class of bug that caused the extension's
+        # .unsupportedTarget failure below — keep both plists as the
+        # single source of truth.
         GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: TheBusLive/Info.plist
     dependencies:
       # `embed: true` alone can produce a plain copy-files step rather
       # than a real "Embed Foundation Extensions" phase, which is what
@@ -72,14 +70,6 @@ targets:
         excludes:
           - "LiveActivityManager.swift"
           - "Info.plist"
-    info:
-      path: TheBusLive/LiveActivity/Info.plist
-      properties:
-        CFBundleDisplayName: TheBus Live Activity
-        CFBundleShortVersionString: "1.0.1"
-        CFBundleVersion: "1"
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.thebuslive.app.activity
@@ -88,12 +78,11 @@ targets:
         IPHONEOS_DEPLOYMENT_TARGET: "16.2"
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
-        # Extension targets need their own generated Info.plist so
-        # Xcode merges in the NSExtensionPrincipalClass / target-specific
-        # keys WidgetKit expects (e.g. tying @main to the plist).
-        # Leaving this unset would otherwise inherit the app target's
-        # GENERATE_INFOPLIST_FILE: NO, producing an extension bundle
-        # iOS can't validate as a widget host.
-        GENERATE_INFOPLIST_FILE: YES
+        # This plist already has CFBundlePackageType: XPC! and the
+        # NSExtension/NSExtensionPointIdentifier dict WidgetKit needs.
+        # Generating from info.properties instead drops
+        # CFBundlePackageType, which stops iOS from registering the
+        # bundle as a valid extension target — Activity.request then
+        # throws .unsupportedTarget with no build-time error to point at.
+        GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: TheBusLive/LiveActivity/Info.plist
-        INFOPLIST_KEY_CFBundleDisplayName: TheBus Live Activity
