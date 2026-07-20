@@ -165,18 +165,26 @@ actor APIClient {
             return cached
         }
 
-        if let existingTask = getInFlightRequest(key: cacheKey) as? Task<T, Error> {
-            return try await existingTask.value
+        if let existingTask = getInFlightRequest(key: cacheKey) {
+            let value = try await existingTask.value
+            guard let typed = value as? T else {
+                throw APIError.invalidResponse
+            }
+            return typed
         }
 
-        let task: Task<T, Error> = Task {
+        let task: Task<Any, Error> = Task {
             try await fetch()
         }
 
         storeInFlightRequest(key: cacheKey, task: task)
         defer { removeInFlightRequest(key: cacheKey) }
 
-        return try await task.value
+        let value = try await task.value
+        guard let typed = value as? T else {
+            throw APIError.invalidResponse
+        }
+        return typed
     }
 
     // MARK: - Cache management
@@ -234,7 +242,7 @@ actor APIClient {
         return inFlightRequests[key]
     }
 
-    private func storeInFlightRequest<T>(key: String, task: Task<T, Error>) {
+    private func storeInFlightRequest(key: String, task: Task<Any, Error>) {
         requestLock.lock()
         defer { requestLock.unlock() }
         inFlightRequests[key] = task
