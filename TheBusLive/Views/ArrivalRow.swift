@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A single row showing one bus's predicted arrival at a stop. Reused by
-/// both `StopDetailView` and, in a lighter mode, `HomeView`.
+/// `StopDetailView`.
 struct ArrivalRow: View {
     let arrival: Arrival
 

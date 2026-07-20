@@ -19,11 +19,6 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
-            HomeView()
-                .tabItem {
-                    Label("Home", systemImage: "bus.fill")
-                }
-
             SearchView()
                 .tabItem {
                     Label("Search", systemImage: "magnifyingglass")

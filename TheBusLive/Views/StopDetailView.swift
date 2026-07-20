@@ -12,10 +12,6 @@ struct StopDetailView: View {
         _viewModel = StateObject(wrappedValue: StopViewModel(stop: stop))
     }
 
-    private var stopSubtitle: String {
-        "Stop \(stop.stopID)"
-    }
-
     private var routesSubtitle: String? {
         guard !stop.routeShortNames.isEmpty else { return nil }
         return "Routes \(stop.routeShortNames.joined(separator: ", "))"
@@ -27,6 +23,27 @@ struct StopDetailView: View {
         formatter.locale = Locale.autoupdatingCurrent
         formatter.setLocalizedDateFormatFromTemplate("jm")
         return "Last refresh: \(formatter.string(from: lastRefreshed))"
+    }
+
+    /// Compact stop info shown as a list header instead of stacked in
+    /// the nav bar: "Stop 137", then routes, then last refresh time.
+    private var stopInfoHeader: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Stop \(stop.stopID)")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            if let routesSubtitle {
+                Text(routesSubtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let refreshSubtitle {
+                Text(refreshSubtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     var body: some View {
@@ -48,13 +65,15 @@ struct StopDetailView: View {
                 }))
                 .transition(.opacity)
             case .loaded:
-                List(viewModel.arrivals) { arrival in
-                    NavigationLink(value: arrival) {
-                        ArrivalRow(arrival: arrival)
+                List {
+                    Section {
+                        stopInfoHeader
                     }
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        if arrival.estimated && !arrival.isCanceled {
-                            TrackButton(arrival: arrival, stop: stop)
+                    Section {
+                        ForEach(viewModel.arrivals) { arrival in
+                            NavigationLink(value: arrival) {
+                                ArrivalRow(arrival: arrival)
+                            }
                         }
                     }
                 }
@@ -96,23 +115,8 @@ struct StopDetailView: View {
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
-                VStack(spacing: 0) {
-                    MarqueeText(text: stop.name, font: .headline)
-                        .frame(width: 220)
-                    Text(stopSubtitle)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    if let routesSubtitle {
-                        Text(routesSubtitle)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let refreshSubtitle {
-                        Text(refreshSubtitle)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                MarqueeText(text: stop.name, font: .headline)
+                    .frame(width: 220)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -134,21 +138,8 @@ struct StopDetailView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
                 await viewModel.loadArrivals()
-                if let route = trackedRouteNumber {
-                    await LiveActivityManager.shared.update(arrivals: viewModel.arrivals, routeNumber: route)
-                }
             }
         }
-    }
-
-    /// The route currently being Live-Activity-tracked, if any, derived
-    /// from whichever arrival's TrackButton started tracking. Since
-    /// TrackButton manages its own local isTracking state per row, we
-    /// instead just push updates for any arrival whose route matches
-    /// the currently running activity — LiveActivityManager.update
-    /// already no-ops when there's no active activity.
-    private var trackedRouteNumber: String? {
-        viewModel.arrivals.first(where: { $0.estimated && !$0.isCanceled })?.route
     }
 }
 

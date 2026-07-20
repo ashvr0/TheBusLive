@@ -3,6 +3,7 @@ import SwiftUI
 struct FavoritesView: View {
 
     @EnvironmentObject private var favoritesManager: FavoritesManager
+    @State private var moveCount = 0
 
     var body: some View {
         NavigationStack {
@@ -25,12 +26,13 @@ struct FavoritesView: View {
                                 favoritesManager.removeFavorite(at: offsets)
                             }
                             .onMove { source, destination in
-                                HapticsManager.shared.rigid()
                                 favoritesManager.moveFavorite(from: source, to: destination)
+                                moveCount += 1
                             }
                         }
                     }
                     .listStyle(.insetGrouped)
+                    .sensoryFeedback(.impact(weight: .rigid), trigger: moveCount)
                 }
             }
             .navigationTitle("Favorites")

@@ -17,11 +17,22 @@ struct SettingsView: View {
     @AppStorage(AppPreferenceKeys.apiKey) private var apiKey: String = ""
     @State private var showingClearRecentsConfirmation = false
     @State private var showingPrivacyDetails = false
-    @State private var showingAPIKeyInfo = false
-    @State private var showingMissingKeyAlert = false
+    @State private var showingWhyKeyPopover = false
     @State private var showingDebugConsole = false
+    @State private var isKeyRevealed = false
     @State private var selectedURL: IdentifiableURL?
     @FocusState private var apiKeyFieldFocused: Bool
+
+    /// Basic shape check only — this app never talks to a validation
+    /// endpoint, so "valid" here means "looks like a key was pasted",
+    /// not that TheBus has confirmed it.
+    private var trimmedAPIKey: String {
+        apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var keyLooksPresent: Bool {
+        !trimmedAPIKey.isEmpty
+    }
 
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
@@ -82,20 +93,43 @@ struct SettingsView: View {
                                 .contentTransition(.symbolEffect(.replace))
                         }
                     }
-                    .onChange(of: hapticsEnabled) { _, newValue in
-                        if newValue {
-                            HapticsManager.shared.selectionChanged()
-                        }
+                    .sensoryFeedback(.selection, trigger: hapticsEnabled) { _, newValue in
+                        newValue
                     }
                 }
 
                 Section {
-                    HStack {
-                        TextField("Paste your TheBus API key", text: $apiKey)
-                            .focused($apiKeyFieldFocused)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
-                            .font(.system(.body, design: .monospaced))
+                    HStack(spacing: 8) {
+                        Group {
+                            if isKeyRevealed {
+                                TextField("Paste your TheBus API key", text: $apiKey)
+                            } else {
+                                SecureField("Paste your TheBus API key", text: $apiKey)
+                            }
+                        }
+                        .focused($apiKeyFieldFocused)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .font(.system(.body, design: .monospaced))
+
+                        if keyLooksPresent {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .accessibilityLabel("Key entered")
+                        } else {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(.orange)
+                                .accessibilityLabel("No key entered")
+                        }
+
+                        Button {
+                            isKeyRevealed.toggle()
+                        } label: {
+                            Image(systemName: isKeyRevealed ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+
                         if !apiKey.isEmpty {
                             Button {
                                 apiKey = ""
@@ -110,13 +144,34 @@ struct SettingsView: View {
                 } header: {
                     Text("TheBus API Key (Required)")
                 } footer: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Required. The app can't fetch arrivals, routes, or vehicles without your own key.")
-                        Text("Each key is limited to 250,000 requests/day by TheBus, so use your own key rather than sharing one — a shared key can run out for everyone.")
-                        Button("Get your own key") {
-                            showingAPIKeyInfo = true
+                    Button {
+                        showingWhyKeyPopover = true
+                    } label: {
+                        Text("Why do we need this?")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    .popover(isPresented: $showingWhyKeyPopover) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Why we need this")
+                                .font(.headline)
+                            Text("The app can't fetch arrivals, routes, or vehicles without your own key.")
+                            Text("Each key is limited to 250,000 requests a day by TheBus, so a shared key would run out for everyone. Using your own keeps the app working for you.")
+                            Button {
+                                if let url = URL(string: "https://api.thebus.org/NewAccount/") {
+                                    selectedURL = IdentifiableURL(url: url)
+                                }
+                                showingWhyKeyPopover = false
+                            } label: {
+                                Text("Register for a free key")
+                            }
+                            .padding(.top, 2)
                         }
-                        .font(.caption)
+                        .font(.subheadline)
+                        .padding()
+                        .frame(maxWidth: 320)
+                        .presentationCompactAdaptation(.popover)
                     }
                 }
 
@@ -219,21 +274,6 @@ struct SettingsView: View {
             }
             .sheet(item: $selectedURL) { identifiableURL in
                 SafariView(url: identifiableURL.url)
-            }
-            .alert("Get your own API key", isPresented: $showingAPIKeyInfo) {
-                Button("OK") {}
-            } message: {
-                Text("Register for a free key at hea.thebus.org (see the link under About), then paste it here.")
-            }
-            .alert("API Key Not Detected", isPresented: $showingMissingKeyAlert) {
-                Button("OK") {}
-            } message: {
-                Text("An API key is required for this app to work. Get your own free key at hea.thebus.org and paste it above.")
-            }
-            .onAppear {
-                if !APIConfig.hasKey {
-                    showingMissingKeyAlert = true
-                }
             }
         }
     }

@@ -48,9 +48,5 @@
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>TheBus Live uses your location to show nearby stops and center the map on your position.</string>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
-	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
-	<true/>
 </dict>
 </plist>

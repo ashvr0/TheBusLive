@@ -33,9 +33,6 @@ targets:
       - path: TheBusLive
         excludes:
           - "**/*.md"
-          - "LiveActivity/**"
-      - path: TheBusLive/LiveActivity/LiveActivityManager.swift
-      - path: TheBusLive/LiveActivity/BusArrivalAttributes.swift
 
     resources:
       - path: TheBusLive/Assets.xcassets
@@ -53,37 +50,3 @@ targets:
 
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: TheBusLive/TheBusLive.entitlements
-
-    dependencies:
-      - target: TheBusLiveActivity
-        embed: true
-        codeSignOnCopy: true
-
-
-  TheBusLiveActivity:
-    type: app-extension
-    platform: iOS
-    deploymentTarget: "17.0"
-
-    sources:
-      - path: TheBusLive/LiveActivity
-        excludes:
-          - "LiveActivityManager.swift"
-          - "Info.plist"
-
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.thebuslive.app.activity
-        PRODUCT_NAME: TheBusLiveActivity
-
-        SWIFT_VERSION: "5.0"
-        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
-
-        CODE_SIGN_STYLE: Automatic
-        CODE_SIGNING_ALLOWED: YES
-        CODE_SIGNING_REQUIRED: YES
-
-        GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: TheBusLive/LiveActivity/Info.plist
-
-        CODE_SIGN_ENTITLEMENTS: TheBusLive/LiveActivity/TheBusLiveActivity.entitlements

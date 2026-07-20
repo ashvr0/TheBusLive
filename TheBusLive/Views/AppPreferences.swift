@@ -9,12 +9,14 @@ enum AppAccentColor: String, CaseIterable, Identifiable {
     case pink
     case red
     case orange
-    case yellow
     case green
     case teal
 
     var id: String { rawValue }
 
+    /// Yellow is intentionally excluded: it's reserved for the favorite
+    /// star throughout the app, and plain yellow also fails the 4.5:1
+    /// contrast HIG expects for accent-colored text/icons on white.
     var color: Color {
         switch self {
         case .blue: return .blue
@@ -22,7 +24,6 @@ enum AppAccentColor: String, CaseIterable, Identifiable {
         case .pink: return .pink
         case .red: return .red
         case .orange: return .orange
-        case .yellow: return .yellow
         case .green: return .green
         case .teal: return .teal
         }

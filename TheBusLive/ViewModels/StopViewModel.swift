@@ -15,10 +15,6 @@ final class StopViewModel: ObservableObject {
     @Published private(set) var state: LoadState = .idle
     @Published private(set) var lastRefreshed: Date?
 
-    // The route being actively tracked via Live Activity, if any.
-    // Set this when the user taps Track, cleared when they stop.
-    var trackedRouteNumber: String?
-
     let stop: Stop
     private let client: APIClient
 
@@ -51,14 +47,6 @@ final class StopViewModel: ObservableObject {
             arrivals = sorted
             state = sorted.isEmpty ? .empty : .loaded
             lastRefreshed = Date()
-
-            // Push a Live Activity update if tracking is active
-            if let route = trackedRouteNumber {
-                await LiveActivityManager.shared.update(
-                    arrivals: sorted,
-                    routeNumber: route
-                )
-            }
 
         } catch is CancellationError {
             return
