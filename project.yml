@@ -50,6 +50,7 @@ targets:
         # single source of truth.
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: TheBusLive/Info.plist
+        CODE_SIGN_ENTITLEMENTS: TheBusLive/TheBusLive.entitlements
     dependencies:
       # `embed: true` alone can produce a plain copy-files step rather
       # than a real "Embed Foundation Extensions" phase, which is what
@@ -86,3 +87,4 @@ targets:
         # throws .unsupportedTarget with no build-time error to point at.
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: TheBusLive/LiveActivity/Info.plist
+        CODE_SIGN_ENTITLEMENTS: TheBusLive/LiveActivity/TheBusLiveActivity.entitlements
