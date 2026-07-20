@@ -129,9 +129,6 @@ struct SearchView: View {
         }
     }
 
-    /// Shown before the person types anything: the island map preview
-    /// (moved here from the old Home tab), plus favorites and recents,
-    /// so Search doubles as the app's browsing home.
     private var defaultState: some View {
         List {
             Section {
@@ -142,9 +139,19 @@ struct SearchView: View {
 
             if !favoritesManager.favorites.isEmpty {
                 Section("Favorite stops") {
-                    ForEach(favoritesManager.favorites) { stop in
-                        NavigationLink(value: stop) {
-                            StopRow(stop: stop)
+                    ForEach(favoritesManager.favorites) { metadata in
+                        NavigationLink(value: metadata.stop) {
+                            StopRow(
+                                stop: metadata.stop,
+                                isFavorite: true,
+                                favoriteNote: metadata.note,
+                                onToggleFavorite: {
+                                    favoritesManager.toggleFavorite(metadata.stop)
+                                },
+                                onUpdateNote: { newNote in
+                                    favoritesManager.updateNote(metadata.stop, to: newNote)
+                                }
+                            )
                         }
                     }
                 }
@@ -194,10 +201,18 @@ struct SearchView: View {
                     Section {
                         ForEach(filteredStops) { stop in
                             NavigationLink(value: stop) {
+                                let isFav = favoritesManager.isFavorite(stop)
+                                let note = favoritesManager.getNoteForFavorite(stop)
                                 StopRow(
                                     stop: stop,
-                                    isFavorite: favoritesManager.isFavorite(stop),
-                                    onToggleFavorite: { favoritesManager.toggleFavorite(stop) }
+                                    isFavorite: isFav,
+                                    favoriteNote: note,
+                                    onToggleFavorite: {
+                                        favoritesManager.toggleFavorite(stop)
+                                    },
+                                    onUpdateNote: { newNote in
+                                        favoritesManager.updateNote(stop, to: newNote)
+                                    }
                                 )
                             }
                         }
@@ -238,8 +253,6 @@ struct SearchView: View {
         }
     }
 
-    /// Uses a plain `Button` with programmatic navigation instead of
-    /// `NavigationLink` to avoid the List row chevron over the map preview.
     private var mapPreview: some View {
         Button {
             HapticsManager.shared.light()
@@ -291,21 +304,6 @@ private struct RouteResultRow: View {
             }
         }
         .padding(.vertical, 2)
-    }
-}
-
-/// Small capsule marking a route as one of TheBus's Express routes
-/// (A, C, E, U, W). Reused across search results, arrival rows, and
-/// stop rows so Express status reads consistently throughout the app.
-struct ExpressBadge: View {
-    var body: some View {
-        Text("Express")
-            .font(.caption2)
-            .fontWeight(.semibold)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(BusRoute.expressColor.opacity(0.15), in: Capsule())
-            .foregroundStyle(BusRoute.expressColor)
     }
 }
 

@@ -75,8 +75,8 @@ Hand-maintained `.xcodeproj` files are XML/plist based, are fragile to merge con
 TheBus's public Web API (documented at https://hea.thebus.org/api_info.asp) is a **read-only, XML-based** API with three endpoints:
 
 | Endpoint | Purpose |
-|---|---|
-| `GET http://api.thebus.org/arrivals/?key=API_key&stop=stop_ID` | Live/scheduled arrivals for a stop |
+|---       |      ---|
+| `GET http://api.thebus.org/arrivals/?key=API_key&stop=stop_ID`   | Live/scheduled arrivals for a stop  |
 | `GET http://api.thebus.org/vehicle/?key=API_key&num=vehicle_num` | Live position of a specific vehicle |
 | `GET http://api.thebus.org/route/?key=API_key&route=route_num` (or `&headsign=text`) | Route lookup by number or headsign text |
 
@@ -88,26 +88,13 @@ Because responses are XML, `APIClient.swift` includes a small dependency-free `X
  
 1. Register for a free AppID at **https://api.thebus.org/NewAccount/**. Registration requires an email address; OTS uses it to notify you of API changes. Each AppID is limited to 250,000 requests/day by default and is deleted after 6 months of inactivity. You may request a higher daily limit for an AppID by emailing api@thebus.org.
 2. Open the app.
-3. Replace the placeholder API key in `APIConfig.swift` with your actual AppID:
+3. Replace the placeholder API key in Settings with your actual AppID:
 ```swift
    static let key = "abcd1234-your-real-appid"
 ```
 4. Save. No other code changes are required; every request in `APIClient` reads from `APIConfig.key`.
 If you build or run without replacing the placeholder, the app will surface a clear "No TheBus API key is configured" error instead of making a doomed network request.
- 
-## Building locally with Xcode
- 
-Requires macOS with Xcode 15.4+ installed.
- 
-```bash
-brew install xcodegen
-cd TheBusLive
-xcodegen generate
-open TheBusLive.xcodeproj
-```
- 
-Then select the `TheBusLive` scheme and a simulator or device, and build/run as usual (Cmd+R).
- 
+
 ## Building via GitHub Actions
  
 The workflow at `.github/workflows/ios-build.yml` runs on `macos-26` runners and:
@@ -121,18 +108,28 @@ The workflow at `.github/workflows/ios-build.yml` runs on `macos-26` runners and
 7. Uploads both the `.ipa` and the raw `.xcarchive` as workflow artifacts
 It triggers on pushes and pull requests to `main`, and can also be run manually from the Actions tab (`workflow_dispatch`).
  
-To get your build artifacts, you can either fork this repo and open a PR (e.g. to add a build toggle), or install directly by checking the latest releases at https://github.com/ashvr0/TheBusLive/releases. The IPA can be installed via SideStore, LiveContainer, or any similar sideloading method, using: https://raw.githubusercontent.com/ashvr0/TheBusLive/refs/heads/main/source.json
+- To get your build artifacts, you can either fork this repo and open a PR (e.g. to add a build toggle), 
+- checking the latest releases at https://github.com/ashvr0/TheBusLive/releases. 
+- The IPA can be installed via SideStore, LiveContainer, or any similar sideloading method, using: https://raw.githubusercontent.com/ashvr0/TheBusLive/refs/heads/main/source.json
  
 ## Installing via SideStore
  
-SideStore signs and installs apps using your own free or paid Apple Developer account, refreshing the signature periodically (roughly every 7 days for a free account).
+SideStore signs and installs apps using your own free or paid Apple Developer account. Free accounts require apps to be refreshed approximately every 7 days.
  
-1. Install SideStore on your iPhone/iPad following SideStore's own setup guide (https://sidestore.io), including pairing it with SideServer/AltServer on a companion computer, which is required for the initial install and periodic re-signing.
-2. Download `TheBusLive-unsigned-ipa` from the GitHub Actions run (see above) and unzip it if needed so you have a `.ipa` file, or keep it zipped — either works with SideStore's import.
-3. Transfer the `.ipa` to your iOS device (AirDrop, Files app, iCloud Drive, or the Share extension, depending on your SideStore version).
-4. Open the file with SideStore, or use SideStore's "+" / import button and pick the `.ipa` from Files.
-5. SideStore will sign the app with your Apple ID's development certificate and install it, prompting you to trust the developer profile in Settings → General → VPN & Device Management if this is the first app signed with that certificate.
-6. Launch TheBus Live from the home screen.
+1. Install SideStore by following the [official SideStore installation guide](https://docs.sidestore.io/docs/installation/prerequisites). You will need:
+   * An iPhone or iPad running iOS or iPadOS 15.0 or later [with a passcode](https://support.apple.com/en-us/119586) enabled.
+   * A Windows, macOS, Linux, or supported Chromebook computer for the initial installation.
+   * An Apple Account.
+   * A WiFi connection.
+2. Install the **LocalDevVPN** app from the App Store and enable the VPN. The VPN must be connected whenever you install, update, or refresh apps with SideStore.
+3. Install **iLoader** on your computer and complete the SideStore setup.
+4. Download `TheBusLive-unsigned.ipa` from the GitHub Actions run. If it is provided as a ZIP archive, extract it to obtain the `.ipa` file, or import the ZIP directly.
+5. Transfer the file to your iPhone using AirDrop, the Files app, iCloud Drive, or another supported method.
+6. Open the file with SideStore, or tap the `+` button in SideStore and select the `.ipa` file.
+7. SideStore will sign the app using your Apple Developer account and install it. If this is the first app signed with your account, you may be prompted to trust the developer profile in **Settings** > **General** > **VPN & Device Management**.
+8. Launch TheBus Live from your Home Screen.
+
+
 ## Notes
  
 Vehicle tracking polls every 30 seconds while the map is open; TheBus's own AVL data is refreshed roughly once a minute, so this has headroom without over-polling.

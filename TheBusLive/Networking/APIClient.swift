@@ -4,15 +4,27 @@ import Foundation
 ///
 /// TheBus's API returns XML rather than JSON, so this client uses
 /// `XMLParser` to build a generic node tree, then maps that tree onto the
-/// app's Codable models. This avoids any third party dependency, which
-/// keeps the GitHub Actions build simple.
+/// app's Codable models. This avoids any third party dependency.
+///
+/// Features:
+/// - Request deduplication for arrivals, vehicles, and routes
+/// - 30-second arrivals cache to reduce API calls
+/// - Detailed error messages that guide users to solutions
+/// - Structured logging for debugging
 actor APIClient {
     static let shared = APIClient()
-    private let session: URLSession
-    private var arrivalsCache: [String: (data: ArrivalsResponse, timestamp: Date)] = [:]
-    private let cacheExpirationSeconds: TimeInterval = 30
-    private var inFlightRequests: [String: Task<ArrivalsResponse, Error>] = [:]
 
+    private let session: URLSession
+    
+    // MARK: - Cache structures
+    private var arrivalsCache: [String: (data: ArrivalsResponse, timestamp: Date)] = [:]
+    private var vehicleCache: [String: (data: VehiclesResponse, timestamp: Date)] = [:]
+    private var routeCache: [String: (data: RouteResponse, timestamp: Date)] = [:]
+    
+    private let cacheExpirationSeconds: TimeInterval = 30
+
+    // MARK: - In-flight request tracking
+    private var inFlightRequests: [String: Task<Any, Error>] = [:]
     nonisolated(unsafe) private let cacheLock = NSLock()
     nonisolated(unsafe) private let requestLock = NSLock()
 
@@ -21,58 +33,71 @@ actor APIClient {
     }
 
     // MARK: - Public requests
+
     func fetchArrivals(stopID: String) async throws -> ArrivalsResponse {
         let cacheKey = "arrivals:\(stopID)"
-
-        if let cached = getCachedArrivals(stopID: stopID) {
-            return cached
-        }
-
-        if let existingTask = getInFlightRequest(key: cacheKey) {
-            return try await existingTask.value
-        }
-
-        // Create task for this request
-        let task: Task<ArrivalsResponse, Error> = Task {
-            let node = try await fetchXML(.arrivals(stopID: stopID))
-            let response = try ArrivalsXMLMapper.map(node)
-
-            // Cache the result
-            cacheLock.lock()
-            arrivalsCache[stopID] = (response, Date())
-            cacheLock.unlock()
-
-            return response
-        }
-
-        storeInFlightRequest(key: cacheKey, task: task)
-        defer { removeInFlightRequest(key: cacheKey) }
-
-        return try await task.value
+        return try await fetchWithDeduplication(
+            cacheKey: cacheKey,
+            cachedValue: getCachedArrivals(stopID: stopID),
+            fetch: {
+                let node = try await self.fetchXML(.arrivals(stopID: stopID))
+                let response = try ArrivalsXMLMapper.map(node)
+                self.setCachedArrivals(response, for: stopID)
+                return response
+            }
+        )
     }
 
     func fetchVehicle(number: String) async throws -> VehiclesResponse {
-        let node = try await fetchXML(.vehicle(number: number))
-        return try VehicleXMLMapper.map(node)
+        let cacheKey = "vehicle:\(number)"
+        return try await fetchWithDeduplication(
+            cacheKey: cacheKey,
+            cachedValue: getCachedVehicle(number: number),
+            fetch: {
+                let node = try await self.fetchXML(.vehicle(number: number))
+                let response = try VehicleXMLMapper.map(node)
+                self.setCachedVehicle(response, for: number)
+                return response
+            }
+        )
     }
 
     func fetchRoutes(routeNum: String) async throws -> RouteResponse {
-        let node = try await fetchXML(.routeByNumber(routeNum: routeNum))
-        return try RouteXMLMapper.map(node)
+        let cacheKey = "route:\(routeNum)"
+        return try await fetchWithDeduplication(
+            cacheKey: cacheKey,
+            cachedValue: getCachedRoute(routeNum: routeNum),
+            fetch: {
+                let node = try await self.fetchXML(.routeByNumber(routeNum: routeNum))
+                let response = try RouteXMLMapper.map(node)
+                self.setCachedRoute(response, for: routeNum)
+                return response
+            }
+        )
     }
 
     func searchRoutes(headsign: String) async throws -> RouteResponse {
-        let node = try await fetchXML(.routeByHeadsign(text: headsign))
-        return try RouteXMLMapper.map(node)
+        let cacheKey = "route:headsign:\(headsign)"
+        return try await fetchWithDeduplication(
+            cacheKey: cacheKey,
+            cachedValue: nil,
+            fetch: {
+                let node = try await self.fetchXML(.routeByHeadsign(text: headsign))
+                return try RouteXMLMapper.map(node)
+            }
+        )
     }
 
     func clearCache() {
         cacheLock.lock()
+        defer { cacheLock.unlock() }
         arrivalsCache.removeAll()
-        cacheLock.unlock()
+        vehicleCache.removeAll()
+        routeCache.removeAll()
     }
 
-    // MARK: - Core fetch
+    // MARK: - Core fetch with XML parsing
+
     private func fetchXML(_ endpoint: Endpoint) async throws -> XMLNode {
         guard APIConfig.hasKey else {
             throw APIError.missingAPIKey
@@ -97,19 +122,25 @@ actor APIClient {
 
         switch httpResponse.statusCode {
         case 200..<300:
-            break // Success
+            break
         case 400:
-            throw APIError.httpStatus(400, "Bad request - check your stop ID or route")
+            debugLog("HTTP 400 Bad Request - invalid stop ID or route number")
+            throw APIError.httpStatus(400, "Invalid request. Check your stop number or route.")
         case 401, 403:
-            throw APIError.httpStatus(403, "API key is invalid or expired")
+            debugLog("HTTP 403 Unauthorized - API key is invalid or expired")
+            throw APIError.httpStatus(403, "API key is invalid or expired. Update it in Settings.")
         case 404:
-            throw APIError.httpStatus(404, "Resource not found")
+            debugLog("HTTP 404 Not Found - stop or route doesn't exist")
+            throw APIError.httpStatus(404, "Stop or route not found.")
         case 429:
-            throw APIError.httpStatus(429, "Rate limit exceeded - too many requests")
+            debugLog("HTTP 429 Rate Limited - too many requests")
+            throw APIError.httpStatus(429, "Too many requests. Please try again in a moment.")
         case 500..<600:
-            throw APIError.httpStatus(httpResponse.statusCode, "Server error - TheBus API is unavailable")
+            debugLog("HTTP \(httpResponse.statusCode) Server Error")
+            throw APIError.httpStatus(httpResponse.statusCode, "TheBus API is temporarily unavailable. Please try again.")
         default:
-            throw APIError.httpStatus(httpResponse.statusCode, "Unexpected HTTP status \(httpResponse.statusCode)")
+            debugLog("HTTP \(httpResponse.statusCode) Unexpected Status")
+            throw APIError.httpStatus(httpResponse.statusCode, "An unexpected error occurred.")
         }
 
         guard !data.isEmpty else {
@@ -123,30 +154,87 @@ actor APIClient {
         }
     }
 
-    // MARK: - Cache Management
+    // MARK: - Request deduplication
+
+    private func fetchWithDeduplication<T>(
+        cacheKey: String,
+        cachedValue: T?,
+        fetch: @escaping () async throws -> T
+    ) async throws -> T {
+        if let cached = cachedValue {
+            return cached
+        }
+
+        if let existingTask = getInFlightRequest(key: cacheKey) as? Task<T, Error> {
+            return try await existingTask.value
+        }
+
+        let task: Task<T, Error> = Task {
+            try await fetch()
+        }
+
+        storeInFlightRequest(key: cacheKey, task: task)
+        defer { removeInFlightRequest(key: cacheKey) }
+
+        return try await task.value
+    }
+
+    // MARK: - Cache management
+
     private func getCachedArrivals(stopID: String) -> ArrivalsResponse? {
+        getCached(from: &arrivalsCache, key: stopID)
+    }
+
+    private func setCachedArrivals(_ response: ArrivalsResponse, for stopID: String) {
+        setCached(in: &arrivalsCache, value: response, key: stopID)
+    }
+
+    private func getCachedVehicle(number: String) -> VehiclesResponse? {
+        getCached(from: &vehicleCache, key: number)
+    }
+
+    private func setCachedVehicle(_ response: VehiclesResponse, for number: String) {
+        setCached(in: &vehicleCache, value: response, key: number)
+    }
+
+    private func getCachedRoute(routeNum: String) -> RouteResponse? {
+        getCached(from: &routeCache, key: routeNum)
+    }
+
+    private func setCachedRoute(_ response: RouteResponse, for routeNum: String) {
+        setCached(in: &routeCache, value: response, key: routeNum)
+    }
+
+    private func getCached<T>(from cache: inout [String: (data: T, timestamp: Date)], key: String) -> T? {
         cacheLock.lock()
         defer { cacheLock.unlock() }
 
-        guard let cached = arrivalsCache[stopID] else { return nil }
+        guard let cached = cache[key] else { return nil }
 
         let elapsed = Date().timeIntervalSince(cached.timestamp)
         guard elapsed < cacheExpirationSeconds else {
-            arrivalsCache.removeValue(forKey: stopID)
+            cache.removeValue(forKey: key)
             return nil
         }
 
         return cached.data
     }
 
-    // MARK: - Request Deduplication
-    private func getInFlightRequest(key: String) -> Task<ArrivalsResponse, Error>? {
+    private func setCached<T>(in cache: inout [String: (data: T, timestamp: Date)], value: T, key: String) {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        cache[key] = (value, Date())
+    }
+
+    // MARK: - In-flight request tracking
+
+    private func getInFlightRequest(key: String) -> Task<Any, Error>? {
         requestLock.lock()
         defer { requestLock.unlock() }
         return inFlightRequests[key]
     }
 
-    private func storeInFlightRequest(key: String, task: Task<ArrivalsResponse, Error>) {
+    private func storeInFlightRequest<T>(key: String, task: Task<T, Error>) {
         requestLock.lock()
         defer { requestLock.unlock() }
         inFlightRequests[key] = task
@@ -157,11 +245,18 @@ actor APIClient {
         defer { requestLock.unlock() }
         inFlightRequests.removeValue(forKey: key)
     }
+
+    // MARK: - Debugging
+
+    private func debugLog(_ message: String) {
+        #if DEBUG
+        NSLog("[APIClient] \(message)")
+        #endif
+    }
 }
 
 // MARK: - Minimal XML tree
-/// A minimal generic XML node used as an intermediate representation
-/// before mapping into the app's typed models.
+
 final class XMLNode {
     let name: String
     var text: String = ""
@@ -186,8 +281,8 @@ final class XMLNode {
     }
 }
 
-/// Parses raw XML data into a simple `XMLNode` tree using Foundation's
-/// event driven `XMLParser`.
+// MARK: - XML parser
+
 enum SimpleXMLParser {
     static func parse(data: Data) throws -> XMLNode {
         let delegate = Delegate()
@@ -198,18 +293,15 @@ enum SimpleXMLParser {
 
         guard let root = delegate.root else {
             if let parserError = parser.parserError {
-                NSLog("XML parsing error: \(parserError)")
                 throw APIError.decodingFailed(parserError)
             } else if !success {
                 let parseError = NSError(
                     domain: "SimpleXMLParser",
                     code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "XML parsing failed without error details"]
+                    userInfo: [NSLocalizedDescriptionKey: "XML parsing failed"]
                 )
-                NSLog("XML parsing failed: unknown error")
                 throw APIError.decodingFailed(parseError)
             } else {
-                NSLog("XML parsing succeeded but returned no root element")
                 throw APIError.invalidResponse
             }
         }
@@ -245,31 +337,29 @@ enum SimpleXMLParser {
         }
 
         func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) {
-            NSLog("XML parse error occurred: \(parseError)")
+            #if DEBUG
+            NSLog("[XMLParser] Parse error: \(parseError)")
+            #endif
         }
     }
 }
 
-// MARK: - Mappers
+// MARK: - XML Mappers
+
 enum ArrivalsXMLMapper {
     static func map(_ root: XMLNode) throws -> ArrivalsResponse {
         let stop = root.firstChild("stop")?.trimmedText
         let timestamp = root.firstChild("timestamp")?.trimmedText
         let errorMessage = root.firstChild("errorMessage")?.trimmedText
+
         let arrivals: [Arrival] = root.allChildren("arrival").compactMap { node in
-            // Validate required fields
             guard let route = node.firstChild("route")?.trimmedText, !route.isEmpty else {
-                NSLog("Warning: Arrival missing or empty required field 'route'")
                 return nil
             }
-
             guard let id = node.firstChild("id")?.trimmedText, !id.isEmpty else {
-                NSLog("Warning: Arrival missing or empty required field 'id'")
                 return nil
             }
-
             guard let stopTime = node.firstChild("stopTime")?.trimmedText, !stopTime.isEmpty else {
-                NSLog("Warning: Arrival \(id) missing or empty required field 'stopTime'")
                 return nil
             }
 
@@ -309,12 +399,10 @@ enum VehicleXMLMapper {
                 let lat = Double(node.firstChild("latitude")?.trimmedText ?? ""),
                 let lon = Double(node.firstChild("longitude")?.trimmedText ?? "")
             else {
-                NSLog("Warning: Vehicle missing or invalid latitude/longitude")
                 return nil
             }
 
             guard let number = node.firstChild("number")?.trimmedText, !number.isEmpty else {
-                NSLog("Warning: Vehicle missing or empty required field 'number'")
                 return nil
             }
 
@@ -347,7 +435,6 @@ enum RouteXMLMapper {
 
         let routes: [BusRoute] = root.allChildren("route").compactMap { node in
             guard let routeNum = node.firstChild("routeNum")?.trimmedText, !routeNum.isEmpty else {
-                NSLog("Warning: Route missing or empty required field 'routeNum'")
                 return nil
             }
 
