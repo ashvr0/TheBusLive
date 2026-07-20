@@ -3,7 +3,7 @@ import MapKit
 
 struct SearchView: View {
 
-    enum SearchScope: String, CaseIterable, Identifiable {
+    enum SearchScope: String, CaseIterable, Identifiable, Hashable {
         case stops = "Stops"
         case routes = "Routes"
         var id: String { rawValue }
