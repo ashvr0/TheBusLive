@@ -116,7 +116,7 @@ struct StopDetailView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 MarqueeText(text: stop.name, font: .headline)
-                    .frame(width: 220)
+                    .frame(maxWidth: 220)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -131,13 +131,15 @@ struct StopDetailView: View {
             }
         }
         .task {
+            // A single task owns both the initial load and the recurring
+            // poll, so the 30s interval is measured from the end of each
+            // load rather than from view appearance. Splitting these into
+            // two sibling tasks let a slow initial fetch and the first
+            // poll land close together instead of being evenly spaced.
             favoritesManager.recordRecent(stop)
-            await viewModel.loadArrivals()
-        }
-        .task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 30_000_000_000)
                 await viewModel.loadArrivals()
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
             }
         }
     }

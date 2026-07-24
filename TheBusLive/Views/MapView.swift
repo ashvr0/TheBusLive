@@ -102,7 +102,10 @@ struct MapView: View {
                                 isExpress: isTrackedRouteExpress
                             )
                             .frame(width: 32, height: 32)
-                            .contentShape(Rectangle())
+                            // Visual pin stays small for map density, but the
+                            // tappable area is grown to HIG's 44pt minimum via
+                            // an oversized contentShape rather than the frame.
+                            .contentShape(Rectangle().inset(by: -6))
                         }
                         .buttonStyle(.plain)
                         .popover(item: Binding(

@@ -4,6 +4,13 @@ import SwiftUI
 /// content doesn't fit the available width, similar to a ticker. Falls
 /// back to plain (non-scrolling) text when it already fits, so short
 /// labels don't animate unnecessarily.
+///
+/// Uses `.onGeometryChange` rather than nested `GeometryReader`s: this
+/// view is instantiated per-row in Search/Favorites/Recents lists, and
+/// `GeometryReader` forces an extra layout pass on every containing view.
+/// `.onGeometryChange` reads geometry without that cost. Height is
+/// measured from the rendered text rather than hardcoded, so the view
+/// scales correctly at every Dynamic Type size.
 struct MarqueeText: View {
     let text: String
     var font: Font = .body
@@ -11,7 +18,9 @@ struct MarqueeText: View {
 
     @State private var containerWidth: CGFloat = 0
     @State private var textWidth: CGFloat = 0
+    @State private var textHeight: CGFloat = 22
     @State private var animate = false
+    @State private var animationTask: Task<Void, Never>?
 
     private var needsScrolling: Bool {
         textWidth > containerWidth && containerWidth > 0
@@ -23,37 +32,29 @@ struct MarqueeText: View {
     }
 
     var body: some View {
-        GeometryReader { geo in
-            singleLineText
-                .fixedSize()
-                .background(
-                    GeometryReader { textGeo in
-                        Color.clear
-                            .onAppear {
-                                textWidth = textGeo.size.width
-                                containerWidth = geo.size.width
-                            }
-                            .onChange(of: textGeo.size.width) { _, newValue in
-                                textWidth = newValue
-                            }
-                    }
-                )
-                .offset(x: needsScrolling ? (animate ? -scrollDistance : 0) : 0)
-                .onAppear {
-                    containerWidth = geo.size.width
-                    startAnimationIfNeeded()
-                }
-                .onChange(of: geo.size.width) { _, newValue in
-                    containerWidth = newValue
-                    startAnimationIfNeeded()
-                }
-                .onChange(of: textWidth) { _, _ in
-                    startAnimationIfNeeded()
-                }
-                .frame(width: geo.size.width, alignment: .leading)
-                .clipped()
-        }
-        .frame(height: singleLineHeight)
+        singleLineText
+            .fixedSize()
+            .onGeometryChange(for: CGSize.self) { proxy in
+                proxy.size
+            } action: { newValue in
+                textWidth = newValue.width
+                textHeight = newValue.height
+                startAnimationIfNeeded()
+            }
+            .offset(x: needsScrolling ? (animate ? -scrollDistance : 0) : 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { newValue in
+                containerWidth = newValue
+                startAnimationIfNeeded()
+            }
+            .clipped()
+            .frame(height: textHeight)
+            .onDisappear {
+                animationTask?.cancel()
+                animationTask = nil
+            }
     }
 
     private var singleLineText: Text {
@@ -62,39 +63,32 @@ struct MarqueeText: View {
             .fontWeight(fontWeight)
     }
 
-    /// A reasonable fixed height so the GeometryReader-based layout
-    /// doesn't collapse to zero height before content loads.
-    private var singleLineHeight: CGFloat {
-        switch font {
-        case .caption, .caption2: return 16
-        case .footnote: return 18
-        case .subheadline: return 20
-        case .headline, .body: return 22
-        case .title3: return 26
-        default: return 22
-        }
-    }
-
+    /// Starts (or restarts) the repeating scroll-out/scroll-back cycle.
+    /// Cancels any in-flight scheduling first, so the redundant calls from
+    /// the two `.onGeometryChange` sites collapse into a single active
+    /// timer rather than stacking work.
     private func startAnimationIfNeeded() {
+        animationTask?.cancel()
+
         guard needsScrolling else {
             animate = false
+            animationTask = nil
             return
         }
-        // Reset then kick off a repeating scroll-out/scroll-back cycle
-        // with pauses at each end, rather than a single one-shot slide.
+
         animate = false
         let travelDuration = Double(scrollDistance) / 40.0 // ~40pt/sec
-        let cycle = travelDuration + 1.2 // pause at the far edge
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+        animationTask = Task {
+            try? await Task.sleep(nanoseconds: 600_000_000) // pause before first scroll
+            guard !Task.isCancelled else { return }
+
             withAnimation(
                 Animation.easeInOut(duration: travelDuration)
-                    .delay(0.6)
                     .repeatForever(autoreverses: true)
             ) {
                 animate = true
             }
-            _ = cycle // duration used for pacing reference above
         }
     }
 }

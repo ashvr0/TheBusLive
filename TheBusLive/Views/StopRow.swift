@@ -8,7 +8,6 @@ struct StopRow: View {
     var favoriteNote: String = ""
     var onToggleFavorite: (() -> Void)? = nil
     var onUpdateNote: ((String) -> Void)? = nil
-    var isEditingNote: Bool = false
 
     @State private var editingNote: String = ""
     @State private var showNoteEditor = false
